@@ -15,7 +15,7 @@ Llista de millores pendents, no prioritzades. Cada entrada inclou context i crit
 **Criteris d'acceptació:**
 - [x] El botó de Targetes Anki s'activa correctament quan hi ha un resum a la sidebar. (verificat en viu a Edge + test unitari; 274/274)
 - [x] La build dev a Edge mostra el codi actual i és distingible («Resumir (DEV)»).
-- [ ] Bump 2.6.1 publicat (seguint RELEASE-PROCESS).
+- [x] Bump 2.6.1 publicat (seguint RELEASE-PROCESS). ✅ 2026-06-29 (commit `da91ff9` + tag `v2.6.1`)
 
 ---
 
@@ -26,12 +26,12 @@ Llista de millores pendents, no prioritzades. Cada entrada inclou context i crit
 **Estat (2026-06-29):** canvis de codi fets (commit `46b0ac0`); queda l'acció manual a l'AMO durant el release.
 
 - [x] `options/settings.html`: l'enllaç «Com obtinc una clau d'API?» → `https://xxxaau.github.io/resumir/guia/clau-api/` (URL verificada en viu, no 404).
-- [ ] **AMO**: «Pàgina d'inici» (ara `github.com/xxxaau/resumir`) → el web. (URL de suport i Política de privadesa poden seguir a GitHub.) — **manual al dashboard, durant el release.**
+- [x] **AMO**: «Pàgina d'inici» (ara `github.com/xxxaau/resumir`) → el web. (URL de suport i Política de privadesa poden seguir a GitHub.) — **fet manualment al dashboard (confirmat 2026-07-03).**
 - [x] `README.md`: afegit badge al lloc web propi.
 
 **Criteris d'acceptació:**
 - [x] settings.html i README resolen al web (no 404).
-- [ ] AMO «Pàgina d'inici» actualitzada al web després del release.
+- [x] AMO «Pàgina d'inici» actualitzada al web després del release. ✅ 2026-07-03
 
 ---
 

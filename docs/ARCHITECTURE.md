@@ -1,7 +1,7 @@
 # Architecture Overview
 
-**Document Version**: 1.0  
-**Last Updated**: 2026-05-18  
+**Document Version**: 1.1  
+**Last Updated**: 2026-07-03  
 **Audience**: Core developers, maintainers, security auditors  
 
 ---
@@ -119,6 +119,43 @@ The **Resumir** extension is a privacy-first browser extension that summarizes w
 
 ---
 
+## 🔌 Plugin / Extension System
+
+Beyond the core summary, Resumir exposes its capabilities as **plugins** — independent
+actions the user can enable, reorder, and (where they have a prompt) customize. Each
+plugin surfaces as a button in the sidebar toolbar and a section in the Settings page.
+
+**Single source of truth for order**: `shared/defaults.js` → `DEFAULT_EXTENSION_ORDER`.
+
+| Key | Plugin | Notes |
+|-----|--------|-------|
+| `resum` | Summary | Core; on by default |
+| `selectpdf` | PDF | Core; on by default; extracts remote/local PDFs |
+| `simple` | Explica-ho fàcil (plain language) | Editable prompt |
+| `deepdive` | Aprofundiment (deep dive) | Editable prompt |
+| `science` | Validació científica (scientific review) | Editable prompt |
+| `conceptmap` | Mapa conceptual (concept map) | Markmap render + fullscreen |
+| `obsidian` | Export to Obsidian | `obsidian://` URI; no prompt |
+| `markdown` | Download Markdown | No prompt |
+| `bionic` | Bionic reading | Client-side transform; no API call |
+| `anki` | Targetes Anki (flashcards) | Editable prompt; own vault; exports to Obsidian |
+
+**Architecture note**: plugins are currently **static / compiled-in** — there is no
+dynamic discovery at runtime. Each plugin is wired across several files (button,
+visibility key `enable<Plugin>`, `CONFIG_KEYS`, order, and — if it has a prompt — the
+default constant + migration). The full wiring checklist lives in
+[`CREAR-PLUGIN.md`](./CREAR-PLUGIN.md); the prompt part is documented inline at the top
+of `shared/defaults.js`.
+
+> ⚠️ Common pitfall: a new plugin's `enable<Plugin>` key must also be added to
+> `CONFIG_KEYS` in `sidebar/sidebar.js`, or its button renders in Settings but not in
+> the sidebar (bug diagnosed 2026-06-10).
+
+See the backlog item *"Crear plugins propis des de la configuració"* for the planned
+migration from static to data-driven (user-created) plugins.
+
+---
+
 ## 🔄 Data Flow
 
 ### Summarization Flow
@@ -219,5 +256,5 @@ See the testing strategy notes for details.
 
 ---
 
-**Owner**: Sergi Martínez  
-**Last Updated**: 2026-05-18
+**Owner**: Sergi Xaudiera  
+**Last Updated**: 2026-07-03

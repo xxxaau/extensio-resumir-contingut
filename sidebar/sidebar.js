@@ -267,12 +267,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const pathTemplate = globalConfigCache.obsidianPath || "[4 Arxiu/Notes/]YYYY/gggg-[W]ww";
             const contentTemplate = globalConfigCache.obsidianTemplate || "- [{{title}}]({{url}})\n\t- {{summary_executive}}";
 
-            if (!vault) {
-                const confirmConfig = confirm("Obsidian no està configurat. Vols obrir la configuració?");
-                if (confirmConfig) ext.runtime.openOptionsPage();
-                return;
-            }
-
             const filePath = parseObsidianPath(pathTemplate);
             const content = formatObsidianContent(contentTemplate, currentMetadata);
             const uri = `obsidian://new?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(filePath)}&content=${encodeURIComponent(content.trim())}&append=true`;

@@ -100,9 +100,4 @@ canvien, busca'ls i actualitza'ls tots (o millor, no els tornis a fixar a mà):
 
 ## Pendents coneguts (no bloquejants)
 
-- `docs/ARCHITECTURE.md` no documenta el sistema de plugins.
-- Els docs de release/store (`CHROME-STORE.md`, `SUBMISSION-CHECKLIST.md`) tracten
-  el Chrome Web Store com a imminent i duen versions antigues; avui la distribució
-  Chromium és només via GitHub Releases.
-- `repo rename` a `resumir`: canvis al repo fets; resta el rename a GitHub i AMO al proper release. Inventari a
-  `docs/BACKLOG.md`.
+- _(cap pendent obert de moment)_

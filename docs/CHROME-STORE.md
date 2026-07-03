@@ -1,5 +1,12 @@
 # Chrome Web Store — Submissió i Publicació
 
+> ⚠️ **ESTAT (2026-07-03): NO ACTIU.** La submissió al Chrome Web Store està **ajornada**.
+> Avui la distribució per a Chromium (Chrome/Edge/Brave) es fa **exclusivament via
+> [GitHub Releases](https://github.com/xxxaau/resumir/releases)**. Aquesta guia es conserva
+> com a **referència per a una futura submissió al CWS**; els números de versió que hi
+> apareixen (p. ex. `v2.2.4`) són **il·lustratius** — substitueix-los per la versió actual
+> (`package.json` / `CHANGELOG.md`) quan escaigui.
+
 Guia completa per a publicar **Resumir contingut** al Chrome Web Store (CWS).
 
 ## 📋 Prerequisits

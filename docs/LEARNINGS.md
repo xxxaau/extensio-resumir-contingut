@@ -193,8 +193,10 @@ fitxer exposa una util a `window`, els consumidors la criden via `window.X`.
 **Residus menors — fets 2026-06-10:**
 - ~~`#cache-badge` operable amb teclat~~ ✓ (icones de tipus amb role/tabindex/Enter).
 - ~~Feedback d'Obsidian no enganyós~~ ✓ (el ✓ només si la pestanya s'obre bé; abans
-  es mostrava sempre, fins i tot amb error). El `confirm` "Obsidian no configurat" és
-  codi mort (`vault` sempre té default "Obsidian") — es deixa com a deute conegut.
+  es mostrava sempre, fins i tot amb error). El `confirm` "Obsidian no configurat" era
+  codi mort (`vault` sempre té default "Obsidian") — **eliminat el 2026-07-03** (bloc
+  `if (!vault)` de `sidebar/sidebar.js`; l'`anki.js` sí manté un check viu perquè
+  comprova `!ankiVault && !obsidianVault` abans del default).
 - Tractament "vós" als errors: **DESCARTAT a consciència** — l'extensió és personal i
   informal; es manté "tu" (la guia Gencat avala "tu" en contextos informals).
 

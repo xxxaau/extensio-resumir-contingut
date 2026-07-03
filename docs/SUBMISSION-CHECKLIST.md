@@ -1,5 +1,12 @@
 # 📦 SUBMISSION CHECKLIST — Índex Complet de Publicació
 
+> ⚠️ **ESTAT (2026-07-03).** Actualment només es publica a **Firefox Add-ons (AMO)**.
+> La distribució per a **Chromium (Chrome/Edge/Brave) es fa via
+> [GitHub Releases](https://github.com/xxxaau/resumir/releases)** i la submissió al
+> **Chrome Web Store està ajornada** (les seccions CWS d'aquest document es conserven per
+> a ús futur). Els números de versió i dates d'exemple (`v2.2.4`, «19 de maig») són
+> **il·lustratius**; consulta `package.json` / `CHANGELOG.md` per als valors reals.
+
 Guia executiva de tots els artefactes, documentació i passos preparats per a submissió a Firefox Add-ons (AMO) i Chrome Web Store (CWS).
 
 ---
