@@ -1,3 +1,73 @@
+# Release v2.6.2 — Sessió 2026-07-27
+
+## El fetch de l'article de HN calia moure'l al sidebar (CORS als content scripts)
+
+En resumir un fil de HN només s'enviava la discussió, mai el text de l'article
+enllaçat. **Causa arrel:** el fetch es feia dins la funció injectada al
+content-script (`extractHackerNewsFromDOM`, món isolated); a Chromium/Edge (MV3)
+el navegador bloqueja per CORS els `fetch` cross-origin fets des d'un content
+script, i el fetch fallava en silenci (`articleText` sempre buit). El test antic
+no ho detectava perquè mockejava `fetch` perquè llancés, en lloc de simular una
+resposta real.
+
+**Fix:** `extractHackerNewsFromDOM` (a `extractors.js`) passa a ser síncrona i
+només llegeix el DOM, retornant `{ title, comments, articleUrl }`. El fetch es
+mou a `content.js` → `fetchLinkedArticleText(url)`, executat al context del
+**sidebar**, on `host_permissions: <all_urls>` treu la restricció CORS — el
+mateix patró ja usat pel fetch de PDF.
+
+**Lliçó:** qualsevol `fetch` de contingut extern injectat via
+`executeScriptSafe({func: ...})` hereta les restriccions CORS del content
+script, encara que l'extensió tingui `<all_urls>`. El permís només s'aplica de
+debò des del context de l'extensió (sidebar/background), no des de la pàgina.
+
+## De pas: bug latent al guard SSRF (màscara de bits incorrecta)
+
+En reescriure el fetch, es va detectar que `isPrivateOrReservedIPInline` (versió
+antiga, amb màscares de bits) no detectava mai `192.168.0.0/16` ni
+`100.64.0.0/10` — la comparació de bits estava mal construïda i sempre donava
+`false` per a aquests rangs. **Fix:** reescrit per comparació directa d'octets
+(`a === 192 && b === 168`, etc.), molt més llegible i verificable a cop d'ull.
+**Lliçó:** les màscares de bits per a rangs CIDR són fàcils d'encertar en un test
+puntual i fallar silenciosament en producció; per a un guard de seguretat,
+prioritza la comparació explícita per octets sobre l'aritmètica de bits, encara
+que sigui més verbosa.
+
+## `redirect: "manual"` trencava articles legítims (calia validar la URL final)
+
+El primer intent del fix bloquejava tota redirecció (`redirect: "manual"` +
+rebuig si `resp.type === "opaqueredirect"`), pensat com a guard SSRF. Però molts
+articles legítims redirigeixen (paret de consentiment, geolocalització, `www.`),
+i quedaven bloquejats igual que un atac. **Fix:** `redirect: "follow"` +
+revalidació del guard SSRF sobre `resp.url` (la destinació final), no només
+sobre la URL inicial. **Lliçó:** un guard SSRF no pot assumir que la primera URL
+sigui l'única that importa — cal revalidar després de seguir redireccions, o
+el guard bloqueja casos legítims sense aportar seguretat real (els salts
+intermedis, sense credencials, no filtren res igualment).
+
+## Provar en viu a Edge no és carregar l'extensió al navegador principal
+
+Carregar `build_chromium_dev` a l'Edge habitual de l'usuari **va penjar la
+màquina sencera dues vegades** (un cop en carregar-la, un cop en obrir-la via la
+icona). La causa NO era el fix: mesurat amb un harness Playwright
+(`chromium.launchPersistentContext` amb `channel: "msedge"`) sobre el mateix
+build, el side panel carrega en 337 ms, el heap es manté a 3-4 MB, ~700 MB en 12
+processos estables, cap reinici del service worker. La causa real era pressió de
+memòria de la màquina (15,6 GB totals, 78% en ús ja abans d'obrir Edge, amb
+Firefox + Outlook + 2 sessions de Claude Code al damunt): un Edge nou hi entra en
+intercanvi a disc i penja tot el sistema, no només el navegador.
+
+**Lliçó:** per validar canvis en viu a Edge, usa un harness Playwright controlat
+(límit dur de RAM + mort automàtica del procés) en lloc de carregar l'extensió al
+navegador de treball habitual — evita perdre temps de màquina i permet mesurar
+amb Navigation Timing des de dins de la pàgina (cronometrar amb `execSync`
+síncron des de Node dona xifres falses, perquè bloqueja el propi bucle
+d'esdeveniments del harness). Vegeu memòria persistent
+`live-browser-testing-harness` i `tests/repro-hn-extract.mjs` com a exemple
+reutilitzable.
+
+---
+
 # Release v2.6.1 — Sessió 2026-06-29
 
 ## El botó Anki es desactivava i no es reactivava (simetria de `setGeneratingState`)
