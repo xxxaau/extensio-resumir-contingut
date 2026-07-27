@@ -5,6 +5,15 @@ Tots els canvis importants d'aquest projecte es documenten en aquest fitxer.
 El format està basat en [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 i el projecte segueix el [Versionatge Semàntic](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2026-07-27
+
+### Arreglat
+- **Resums de Hacker News.** En resumir un fil de HN amb un article enllaçat,
+  ara s'inclou també el contingut de l'article (abans només s'enviava la
+  discussió).
+
+---
+
 ## [2.6.1] - 2026-06-29
 
 ### Arreglat
