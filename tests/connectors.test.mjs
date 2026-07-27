@@ -26,12 +26,15 @@ function loadDom(file) {
     return dom;
 }
 
-test("HN: extractHackerNewsFromDOM troba títol i comentaris", async () => {
+test("HN: extractHackerNewsFromDOM troba títol, comentaris i articleUrl", () => {
     loadDom("hackernews-item.html");
-    global.fetch = async () => { throw new Error("sense xarxa al test"); }; // aïllem el fetch d'article
-    const hn = await extractors.extractHackerNewsFromDOM();
+    const hn = extractors.extractHackerNewsFromDOM();
     assert.ok(hn.title && hn.title.length > 0, "ha de trobar un títol");
     assert.ok(hn.comments && hn.comments.includes("- "), "ha de trobar comentaris (.commtext)");
+    // El fetch de l'article NO es fa aquí (els content scripts estan subjectes a
+    // CORS); només es retorna la URL, i el sidebar (content.js) fa el fetch.
+    assert.equal(hn.articleUrl, "https://lmao.center/blog/wiggle-accidents/", "ha de retornar la URL de l'article extern");
+    assert.ok(!("articleText" in hn), "no ha de fer fetch ni retornar articleText");
 });
 
 test("Twitter: extractTwitterOG troba og:description", () => {

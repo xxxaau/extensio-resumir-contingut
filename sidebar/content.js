@@ -46,6 +46,103 @@ async function executeScriptSafe(injection) {
 }
 
 /**
+ * Comprova si un hostname és una IP privada/reservada (guard SSRF).
+ * Comparació per octets (clara i correcta) en lloc de màscares de bits.
+ */
+function isPrivateOrReservedIP(hostname) {
+    const m = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (m) {
+        const octets = m.slice(1).map(Number);
+        if (octets.some(n => n > 255)) return true;        // malformat → rebutja
+        const [a, b] = octets;
+        if (a === 0) return true;                          // 0.0.0.0/8
+        if (a === 10) return true;                         // 10.0.0.0/8 privat
+        if (a === 127) return true;                        // 127.0.0.0/8 loopback
+        if (a === 169 && b === 254) return true;           // 169.254.0.0/16 link-local
+        if (a === 172 && b >= 16 && b <= 31) return true;  // 172.16.0.0/12 privat
+        if (a === 192 && b === 168) return true;           // 192.168.0.0/16 privat
+        if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 CGNAT
+        if (a >= 224) return true;                         // multicast/reservat/broadcast
+        return false;
+    }
+    if (hostname.includes(":")) {
+        const lower = hostname.toLowerCase();
+        // Loopback (::1), IPv4-mapped loopback, link-local (fe80::), ULA (fc../fd..)
+        // i multicast (ff..). Qualsevol IPv6 literal no rutable pública.
+        if (lower === "::1" || lower.startsWith("::ffff:127.") ||
+            lower.startsWith("fe80:") || lower.startsWith("fc") ||
+            lower.startsWith("fd") || lower.startsWith("ff")) return true;
+    }
+    return /^(localhost|metadata|internal)$/i.test(hostname);
+}
+
+/**
+ * Descarrega i extreu (Readability) el text de l'article enllaçat des d'una
+ * pàgina de Hacker News.
+ *
+ * S'executa al context del sidebar (extension page): amb host_permissions
+ * <all_urls>, el fetch cross-origin NO té restriccions CORS, a diferència dels
+ * content scripts (isolated/MAIN world), on el navegador el bloqueja. És el
+ * mateix patró de permisos que el fetch de PDF. Retorna "" en qualsevol error
+ * (degradació silenciosa: es resumeixen només els comentaris de la discussió).
+ */
+async function fetchLinkedArticleText(articleUrl) {
+    if (!articleUrl || articleUrl.includes("ycombinator.com")) return "";
+    let u;
+    try { u = new URL(articleUrl); } catch { return ""; }
+    // Guard SSRF: només https, sense port explícit, host no privat/reservat.
+    if (u.protocol !== "https:" || u.port !== "" || isPrivateOrReservedIP(u.hostname)) return "";
+
+    const doFetch = () => fetch(articleUrl, {
+        credentials: "omit",
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+    });
+
+    let resp;
+    try {
+        resp = await doFetch();
+    } catch (e) {
+        // El primer fetch pot fallar per CORS si encara no tenim host_permissions.
+        // Demanem <all_urls> (sota gest d'usuari) i reintentem, com fa el fetch de PDF.
+        try {
+            const granted = await ext.permissions.request({ permissions: [], origins: ["<all_urls>"] });
+            if (!granted) return "";
+            resp = await doFetch();
+        } catch { return ""; }
+    }
+
+    try {
+        if (!resp || !resp.ok) return "";
+        // Re-validació anti-SSRF de la URL FINAL després de seguir redireccions.
+        // El navegador no permet validar cada salt (amb `redirect: "manual"` la
+        // resposta és opaca i amaga el `Location`), però `resp.url` sí que dona la
+        // destinació final: bloquegem el cas principal redirect→host intern. El
+        // fetch omet credencials i el contingut mai s'exfiltra (només alimenta el
+        // resum de l'usuari), de manera que el risc residual dels salts intermedis
+        // (GET sense credencials, resposta descartada) és baix.
+        try {
+            const finalU = new URL(resp.url);
+            if (finalU.protocol !== "https:" || finalU.port !== "" || isPrivateOrReservedIP(finalU.hostname)) return "";
+        } catch { return ""; }
+        const contentType = resp.headers.get("content-type") || "";
+        if (!contentType.includes("text/html")) return "";
+        const raw = await resp.text();
+        if (raw.length > 2 * 1024 * 1024) return "";
+        if (typeof Readability === "undefined") return "";
+        const doc = new DOMParser().parseFromString(raw, "text/html");
+        const base = doc.createElement("base");
+        base.href = articleUrl;
+        doc.head.insertBefore(base, doc.head.firstChild);
+        const article = new Readability(doc).parse();
+        if (article?.textContent?.trim().length > 200) return article.textContent.trim();
+    } catch (e) {
+        console.debug("HN article fetch/parse failed", e?.message);
+    }
+    return "";
+}
+
+/**
  * Extracts and returns the relevant text content from the active tab.
  * Includes specific heuristics for HackerNews, YouTube, LinkedIn, Twitter/X, and fallback to Readability.
  */
@@ -177,26 +274,21 @@ async function getPageContent() {
     // HACKER NEWS SPECIAL LOGIC
     if (tabUrl.includes("news.ycombinator.com/item")) {
         try {
-            // Pre-inject Readability so the in-page func can parse the article.
-            // Required when the article fetch succeeds and we want clean text.
-            try {
-                await executeScriptSafe({
-                    target: { tabId: tabId },
-                    files: ["Readability.js"]
-                });
-            } catch (e) { console.debug("HN Readability inject failed", e?.message); }
-
             const hnResult = await executeScriptSafe({
                 target: { tabId: tabId },
-                // El fetch s'executa DINS el context del content-script (no extension_pages),
-                // per tant la CSP `connect-src` del manifest no s'aplica.
+                // Només llegeix el DOM (títol, comentaris, URL de l'article).
                 // La lògica viu a extractors.js (font única de selectors).
                 func: extractHackerNewsFromDOM
             });
             const hn = hnResult?.[0]?.result;
             if (hn) {
-                text = hn.articleText
-                    ? `Title: ${hn.title}\n\nARTICLE:\n${hn.articleText}\n\nHACKER NEWS DISCUSSION:\n${hn.comments}`
+                // El fetch de l'article extern es fa AQUÍ (context del sidebar), no
+                // dins la pàgina: els content scripts (isolated/MAIN) estan subjectes
+                // a CORS. Des del sidebar, amb host_permissions <all_urls>, el fetch
+                // cross-origin NO té restriccions CORS (mateix patró que el PDF).
+                const articleText = await fetchLinkedArticleText(hn.articleUrl);
+                text = articleText
+                    ? `Title: ${hn.title}\n\nARTICLE:\n${articleText}\n\nHACKER NEWS DISCUSSION:\n${hn.comments}`
                     : `Title: ${hn.title}\n\nTop Discussion Comments:\n${hn.comments}`;
             }
         } catch (e) {

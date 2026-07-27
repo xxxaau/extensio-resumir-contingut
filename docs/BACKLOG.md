@@ -19,6 +19,61 @@ Llista de millores pendents, no prioritzades. Cada entrada inclou context i crit
 
 ---
 
+## Fix: Hacker News no enviava el text de l'article enllaçat (✅ VALIDAT EN VIU)
+
+**Context (2026-07-03):** L'usuari va reportar que en resumir un fil de HN només
+s'enviava la discussió (comentaris), mai el contingut de l'article enllaçat.
+
+**Causa arrel:** el fetch de l'article es feia dins la funció injectada al
+content-script (`extractHackerNewsFromDOM`, món isolated). A Chromium/Edge (MV3)
+els `fetch` cross-origin des d'un content-script els bloqueja CORS → el fetch
+fallava en silenci → `articleText` sempre buit. El propi codi del fetch de PDF
+(`content.js`) ja documentava aquesta limitació i el patró correcte (fetch des
+del context del sidebar, amb `<all_urls>`, sense restriccions CORS). El test
+antic no ho detectava perquè mockejava `fetch` perquè llancés.
+
+**Fix aplicat:**
+- `sidebar/extractors.js`: `extractHackerNewsFromDOM` ara només llegeix el DOM
+  (retorna `{ title, comments, articleUrl }`, sense fetch).
+- `sidebar/content.js`: nou `fetchLinkedArticleText(url)` que corre al **sidebar**
+  (mateix patró que el PDF: fetch directe → si falla, demana `<all_urls>` i
+  reintenta). Guard SSRF sobre la URL inicial I la URL final després de seguir
+  redireccions (`resp.url`), ja que `redirect: "manual"` trencava els articles
+  que redirigeixen (consent/geo/www) i calia permetre `"follow"`.
+- Es va descobrir i corregir de pas un bug latent al guard SSRF (màscara de bits
+  errònia per a `192.168.0.0/16` i `100.64.0.0/10`, mai detectava aquests
+  rangs) — reescrit amb comparació per octets.
+- `sidebar/sidebar.html`: carrega `Readability.js` (abans només s'injectava a
+  la pàgina; ara cal també al sidebar per parsejar l'article fetchejat allà).
+- Tests: 2 tests HN actualitzats al contracte nou + 1 test de regressió SSRF
+  (redirecció a IP interna). 275/275 tests, lint net.
+
+**Estat:** codi + tests fets i verificats; build DEV (`build_chromium_dev`)
+regenerat. **Validat en viu a Edge** (2026-07-27) amb l'harness
+`tests/repro-hn-extract.mjs`, que carrega `build_chromium_dev` a l'Edge real via
+Playwright i crida `getPageContent()` sobre un fil de HN de debò. Queda fer el commit.
+
+**Criteris d'acceptació:**
+- [x] Resumir un fil de HN amb article enllaçat (`id=48762725`) inclou la
+  secció `ARTICLE:` amb el contingut de l'enllaç, a més de la discussió.
+  → 77.017 caràcters, secció `ARTICLE:` present, 2,7 s, heap 3→4 MB.
+- [x] No hi ha regressió en fils HN sense article extern (`articleUrl` intern).
+  → Ask HN `id=49065668`: cau correctament a «Top Discussion Comments», sense
+  secció `ARTICLE:`, 148 ms.
+- [ ] Commit fet després de validar en viu.
+
+**Nota — el penjat de RAM d'Edge no era d'aquest fix.** Durant la prova en viu,
+carregar l'extensió a l'Edge de l'usuari va penjar la màquina dues vegades. Es va
+descartar per mesura directa: l'extensió carregada a l'Edge real dona 337 ms fins
+a `load` del side panel, heap de 3-4 MB, ~700 MB en 12 processos estables (normal
+per a un Edge nou), cap reinici del service worker i cap error. La causa era
+pressió de memòria de la màquina (15,6 GB totals al 78 % d'ús, amb Firefox,
+Outlook i dues sessions de Claude Code al damunt): en afegir-hi un Edge nou,
+Windows entra en intercanvi a disc i es penja tot. Monitor per si torna a passar:
+`D:\tmp\watch-mem.ps1`.
+
+---
+
 ## Apuntar els enllaços públics al web propi (PROPER RELEASE)
 
 **Context (2026-06-26):** El web propi ja és viu a **https://xxxaau.github.io/resumir/** (vegeu `web/` i `.github/workflows/pages.yml`). Cal redirigir-hi els enllaços públics que ara apunten a GitHub. El canvi de `settings.html` viatja a l'usuari, així que va **lligat a una release de l'extensió**.

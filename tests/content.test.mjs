@@ -184,16 +184,22 @@ test("getPageContent - HN retorna discussió sense article quan articleUrl és n
 });
 
 test("getPageContent - HN combina article i discussió quan articleUrl és extern", async () => {
-    // El fetch de l'article s'executa DINS del content script (func injected via executeScriptSafe).
-    // En els tests, executeScriptSafe retorna scriptResult directament sense executar la funció.
-    // Per tant simulem que el content script ja ha fet el fetch i retorna articleText poblat.
+    // El fetch de l'article s'executa al context del sidebar (content.js), no dins
+    // la pàgina: els content scripts (isolated/MAIN) estan subjectes a CORS. La
+    // funció injectada només retorna articleUrl; el sidebar fa el fetch + Readability.
     const hnTab = { id: 2, url: "https://news.ycombinator.com/item?id=12345", title: "HN Thread" };
+    global.fetch = async () => ({
+        ok: true,
+        url: "https://example.com/article",
+        headers: { get: () => "text/html; charset=utf-8" },
+        text: async () => "<html><body><article>" + "Text de l'article. ".repeat(20) + "</article></body></html>",
+    });
+    global.Readability = class { parse() { return { textContent: "Text de l'article. ".repeat(20) }; } };
     global.ext = makeExt({
         tabs: [hnTab],
         scriptResult: {
             title: "Article Title",
             articleUrl: "https://example.com/article",
-            articleText: "Text de l'article. ".repeat(20),
             comments: "- Comentari sobre l'article"
         },
     });
@@ -216,6 +222,28 @@ test("getPageContent - HN degrada gracefully quan el fetch de l'article falla", 
     assert.ok(result.text.includes("Top Discussion Comments"), "Ha de mostrar discussió sola si fetch falla");
     assert.ok(result.text.includes("Comentari de fallback"), "Ha d'incloure els comentaris");
     assert.ok(!result.text.includes("ARTICLE:"), "No ha d'incloure secció ARTICLE si fetch falla");
+});
+
+test("getPageContent - HN bloqueja SSRF quan la redirecció acaba en host intern", async () => {
+    // El fetch inicial (URL pública) segueix una redirecció i acaba en una IP
+    // privada: resp.url reflecteix la destinació final i el guard SSRF l'ha de
+    // rebutjar → cap secció ARTICLE, només la discussió.
+    const hnTab = { id: 2, url: "https://news.ycombinator.com/item?id=12345", title: "HN Thread" };
+    global.fetch = async () => ({
+        ok: true,
+        url: "https://192.168.1.10/internal",
+        headers: { get: () => "text/html" },
+        text: async () => "<html><body>" + "contingut intern ".repeat(30) + "</body></html>",
+    });
+    global.Readability = class { parse() { return { textContent: "contingut intern ".repeat(30) }; } };
+    global.ext = makeExt({
+        tabs: [hnTab],
+        scriptResult: { title: "Article Title", articleUrl: "https://example.com/redirect", comments: "- Comentari SSRF" },
+    });
+    const result = await getPageContent();
+    assert.ok(!result.text.includes("ARTICLE:"), "No ha d'incloure ARTICLE si la URL final és interna");
+    assert.ok(!result.text.includes("contingut intern"), "No ha d'exfiltrar contingut intern");
+    assert.ok(result.text.includes("Top Discussion Comments"), "Ha de retornar la discussió sola");
 });
 
 test("getPageContent - HN degrada gracefully quan l'article retorna error HTTP", async () => {

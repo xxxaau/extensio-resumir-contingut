@@ -4,8 +4,15 @@
  * executeScript({func}) i s'importen als tests/canari. Font única de selectors.
  */
 
-// Extreu el títol i comentaris d'una pàgina HN, i intenta obtenir el text de l'article extern.
-async function extractHackerNewsFromDOM() {
+// Extreu el títol, els comentaris i la URL de l'article extern d'una pàgina HN.
+//
+// IMPORTANT: el fetch de l'article NO es fa aquí. Aquesta funció s'injecta al
+// content-script (món isolated) i els fetch cross-origin dels content scripts
+// estan subjectes a CORS (a Chromium el navegador els bloqueja). El fetch de
+// l'article es fa al context del sidebar (content.js → fetchLinkedArticleText),
+// que amb host_permissions <all_urls> NO té restriccions CORS — el mateix patró
+// que el fetch de PDF.
+function extractHackerNewsFromDOM() {
     const titleEl = document.querySelector(".titleline a");
     // textContent és compatible tant amb el navegador com amb jsdom als tests
     const getText = (el) => (el.innerText !== undefined ? el.innerText : el.textContent) || "";
@@ -14,64 +21,7 @@ async function extractHackerNewsFromDOM() {
         .join("\n");
     const title = getText(titleEl) || document.title;
     const articleUrl = titleEl?.href || null;
-
-    // Guard SSRF: rebutja IPs privades/reservades inlineat (cap import extern).
-    const isPrivateOrReservedIPInline = (hostname) => {
-        const m = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-        if (m) {
-            const [, a, b, c, d] = m.map(Number);
-            const ip = (a << 24) | (b << 16) | (c << 8) | d;
-            if ((ip >>> 24) === 0) return true;
-            if ((ip >>> 24) === 10) return true;
-            if ((ip >>> 24) === 127) return true;
-            if ((ip & 0xfff0000) === 0xc0a80000) return true;
-            if ((ip >>> 20) === 0xac1) return true;
-            if ((ip >>> 16) === 0xa9fe) return true;
-            if ((ip >>> 22) === 0x1840) return true;
-            if ((ip >>> 4) === 0x0fffffff) return true;
-            return false;
-        }
-        if (hostname.includes(":")) {
-            const lower = hostname.toLowerCase();
-            if (lower === "::1" || lower.startsWith("::ffff:127.") ||
-                lower.startsWith("fe80:") || lower.startsWith("ff")) return true;
-        }
-        return /^(localhost|metadata|internal)$/i.test(hostname);
-    };
-
-    let articleText = "";
-    if (articleUrl && !articleUrl.includes("ycombinator.com")) {
-        try {
-            const u = new URL(articleUrl);
-            if (u.protocol !== "https:" || u.port !== "" || isPrivateOrReservedIPInline(u.hostname)) {
-                throw new Error("Blocked: private/reserved IP or invalid protocol/port");
-            }
-            const resp = await fetch(articleUrl, {
-                credentials: "omit",
-                redirect: "manual",
-                signal: AbortSignal.timeout(8000)
-            });
-            if (resp.type === "opaqueredirect") throw new Error("Blocked: redirect");
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const contentType = resp.headers.get("content-type") || "";
-            if (!contentType.includes("text/html")) throw new Error("Invalid content-type");
-            const raw = await resp.text();
-            if (raw.length > 2 * 1024 * 1024) throw new Error("Response too large");
-            if (typeof Readability !== "undefined") {
-                const doc = new DOMParser().parseFromString(raw, "text/html");
-                const base = doc.createElement("base");
-                base.href = articleUrl;
-                doc.head.insertBefore(base, doc.head.firstChild);
-                const article = new Readability(doc).parse();
-                if (article?.textContent?.trim().length > 200) {
-                    articleText = article.textContent.trim();
-                }
-            }
-        } catch (e) {
-            // Silencia errors de xarxa (inclou el cas de test amb fetch mock)
-        }
-    }
-    return { title, comments, articleText };
+    return { title, comments, articleUrl };
 }
 
 // Extreu els tweets visibles al DOM de Twitter/X.
