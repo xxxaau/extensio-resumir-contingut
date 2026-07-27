@@ -51,7 +51,9 @@ antic no ho detectava perquè mockejava `fetch` perquè llancés.
 **Estat:** codi + tests fets i verificats; build DEV (`build_chromium_dev`)
 regenerat. **Validat en viu a Edge** (2026-07-27) amb l'harness
 `tests/repro-hn-extract.mjs`, que carrega `build_chromium_dev` a l'Edge real via
-Playwright i crida `getPageContent()` sobre un fil de HN de debò. Queda fer el commit.
+Playwright i crida `getPageContent()` sobre un fil de HN de debò. **Fet** (`6105dce`).
+Queda només afegir-ho al CHANGELOG al pròxim «prepara vX.Y.Z» (és un canvi visible
+per a l'usuari: els resums de HN ara inclouen l'article enllaçat).
 
 **Criteris d'acceptació:**
 - [x] Resumir un fil de HN amb article enllaçat (`id=48762725`) inclou la
@@ -60,7 +62,7 @@ Playwright i crida `getPageContent()` sobre un fil de HN de debò. Queda fer el 
 - [x] No hi ha regressió en fils HN sense article extern (`articleUrl` intern).
   → Ask HN `id=49065668`: cau correctament a «Top Discussion Comments», sense
   secció `ARTICLE:`, 148 ms.
-- [ ] Commit fet després de validar en viu.
+- [x] Commit fet després de validar en viu. → `6105dce`
 
 **Nota — el penjat de RAM d'Edge no era d'aquest fix.** Durant la prova en viu,
 carregar l'extensió a l'Edge de l'usuari va penjar la màquina dues vegades. Es va
