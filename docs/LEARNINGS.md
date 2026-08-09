@@ -1,3 +1,58 @@
+# Auditoria funcional + catàleg de models — Sessió 2026-08-09
+
+## Workflow que ha funcionat bé: 3 agents en paral·lel + contrastar amb els tests existents
+
+Auditoria de tot `sidebar/`, `options/`, `shared/`, `background.js`, `ext.js`
+(sense navegador) repartida en 3 agents Explore en paral·lel, cadascun amb
+l'encàrrec explícit de llegir el codi sencer del seu bloc **i** els tests
+corresponents, buscant discrepàncies entre el que es testeja i el que fa el
+codi actual. Ha tret 20+ troballes reals (3 de greus) en una sola passada,
+incloent-hi bugs que existien des de feia temps però quedaven emmascarats
+entre si (l'abort trencat amagava que, un cop arreglat, calia revisar també
+el que passava en avortar a mig bucle de fallback).
+
+## Un grep de "sense ús" no detecta l'ús indirecte via paràmetre reanomenat
+
+En netejar icones sense ús a `shared/icons.js`, `grep -rn "MARKMAP_ICONS\.close"`
+no va trobar cap resultat → semblava mort. Però `MARKMAP_ICONS` sencer es
+passa com a **argument** a una funció injectada a la pàgina
+(`executeScriptSafe({func: fullscreenOverlayFunc, args: [..., MARKMAP_ICONS]})`),
+i dins d'aquesta funció el paràmetre es diu `icons` (no `MARKMAP_ICONS`) —
+`icons.close` hi és ben viu. **Lliçó:** abans d'eliminar una propietat
+"sense ús" d'un objecte que es passa sencer com a argument enlloc (sobretot
+via `executeScriptSafe`/`func:`, on el receptor pot reanomenar els paràmetres
+lliurement), cal buscar també per l'ús del paràmetre local al punt de
+recepció, no només pel nom original de l'objecte. Detectat i revertit just
+abans de commitejar-ho.
+
+## Una alarma de severitat "urgent, viu ara mateix" es verifica traçant el codi, no assumint-la
+
+L'advisor va marcar com a regressió activa un `break` al bucle de fallback
+que semblava poder deixar caure un resum buit sense avisar, arran del fix de
+l'abort. Traçant el codi real (quins `await` hi ha entre cada check de
+`signal.aborted`) es va veure que el camí és, de fet, inabastable amb
+l'estructura actual (cap `await` entre el check previ al bucle i el primer
+`break`; qualsevol abort dins d'una petició ja el capturava el catch
+existent). El primer test escrit per "demostrar-ho" passava igual sense el
+fix — senyal clar que testejava el camí equivocat. **Lliçó:** una alarma de
+severitat alta es contrasta traçant els `await` reals del codi, no assumint-la
+pel seu to; i un test que passa amb i sense el fix no és evidència que el fix
+sigui correcte — és evidència que cal repensar el test (o el diagnòstic). El
+guard defensiu es va mantenir igualment (barat, sense risc), però documentat
+com a tal, no com a "fix d'un bug viu".
+
+## Decisions de preferència (ordre, comportament per defecte) es pregunten, no es decideixen dins d'una neteja
+
+Dos "bugs" de l'auditoria (`sortModelsByPriority` posant un model més nou
+abans que el per defecte; `ensureFavoriteModels` tornant a afegir sempre el
+model per defecte) eren en realitat decisions de disseny documentades al
+codi mateix (un comentari deia explícitament "assegura que sempre inclou el
+model per defecte"). Es van plantejar com a pregunta explícita a l'usuari
+abans de tocar-los, en lloc de "corregir-los" silenciosament dins d'un batch
+de neteja.
+
+---
+
 # Release v2.6.2 — Sessió 2026-07-27
 
 ## El fetch de l'article de HN calia moure'l al sidebar (CORS als content scripts)
