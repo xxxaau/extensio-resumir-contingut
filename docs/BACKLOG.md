@@ -15,9 +15,9 @@ i criteris d'acceptació mínims.
 
 ## Resum de documents Office online (Word/PowerPoint de SharePoint/OneDrive)
 
-**Context (2026-06-11):** Actualment l'extracció de contingut (`sidebar/content.js`) injecta Readability/Defuddle al DOM de la pàgina i, per a PDFs, els detecta per Content-Type i els processa amb `sidebar/pdf-extract.js`. Els documents Word (`.docx`) i PowerPoint (`.pptx`) oberts online a SharePoint/OneDrive **no funcionen** perquè:
+**Context (2026-06-11, premisa revisada 2026-08-09):** Actualment l'extracció de contingut (`sidebar/content.js`) injecta Readability al DOM de la pàgina (Defuddle ja no s'usa — es va retirar; vegeu `VENDORS.md`) i, per a PDFs, els detecta per Content-Type i els processa amb `sidebar/pdf-extract.js`. Els documents Word (`.docx`) i PowerPoint (`.pptx`) oberts online a SharePoint/OneDrive **no funcionen** perquè:
 
-- Es rendereixen dins del **visor web d'Office Online** (Word/PowerPoint for the web), una SPA plena d'iframes on el text no és DOM accessible/seleccionable de forma fiable → Readability/Defuddle no extreuen res útil.
+- Es rendereixen dins del **visor web d'Office Online** (Word/PowerPoint for the web), una SPA plena d'iframes on el text no és DOM accessible/seleccionable de forma fiable → Readability no en pot extreure res útil.
 - El fitxer binari real està darrere d'**URLs autenticades** de SharePoint/OneDrive (sessió de l'usuari, no `.docx` directe a la URL) → un `fetch` simple no el recupera, i caldria respectar les credencials.
 - Encara que es recuperés el binari, caldria **parsejar el format Office** al client (p. ex. `mammoth.js` per a `.docx`, un parser de `.pptx` per a OOXML), cap dels quals existeix avui al projecte.
 
