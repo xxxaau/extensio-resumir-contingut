@@ -4,7 +4,7 @@ Llista de millores pendents, no prioritzades. Cada entrada inclou context i crit
 
 ---
 
-## Auditoria funcional 2026-08-09 — bugs pendents
+## Auditoria funcional 2026-08-09 (✅ TANCADA)
 
 **Context:** auditoria de codi (3 agents en paral·lel, sense navegador) sobre
 tot `sidebar/`, `options/`, `shared/`, `background.js`, `ext.js`, contrastant
@@ -60,19 +60,34 @@ fuita de listeners del mapa conceptual). **Fets amb tests de regressió
   s'encalla després del primer chunk penja per sempre (el test amb el codi
   antic no arriba mai a resoldre's); amb el fix, s'avorta correctament.
 
-**Menor / codi mort (no urgent):** `ext.sidebar.close()` sense cap crida
-enlloc; icones sense ús a `shared/icons.js`; arbre `<details>` de fallback a
-`conceptmap.js` pràcticament inabastable (defensiu, es manté); `closest()`
-sobre un resultat potencialment `null` a `options/settings-order.js:63-64`;
-`ext` com a nom de variable de loop ombreja l'API global a
-`options/settings-sidebar.js:96`; tancament `</UNTRUSTED_CONTENT>` que es pot
-truncar en resums molt llargs; flush final del `TextDecoder` no fet a
-`sidebar/api.js`; `getDailyStats`/`rpd` (quota diària per model) estan
-implementats i testejats però no s'usen enlloc a producció (feature
-incompleta, no bug).
+**Menor / codi mort — fets (2026-08-09, tercera tanda):**
 
-**Criteris d'acceptació:** cada ítem es tanca amb un fix + test de
-regressió, sense trencar els 275 tests existents.
+- [x] `ext.sidebar.close()` (`ext.js`) — eliminat, sense cap crida enlloc
+  (incloïa el seu propi bug latent: el `setTimeout` de re-enable a Chromium
+  podia deixar el panell desactivat si el service worker moria pel mig).
+- [x] Icones sense ús a `shared/icons.js` (`fit`, `expandAll`, `collapseAll`,
+  `downloadPng`, `fullPage`) — eliminades. **Nota:** `close` semblava sense ús
+  amb un grep directe, però s'usa indirectament via el paràmetre `icons` de
+  `fullscreenOverlayFunc` (rebut com a `MARKMAP_ICONS` sencer via
+  `executeScriptSafe({..., args: [..., MARKMAP_ICONS]})`) — detectat i
+  revertit abans de fer cap commit.
+- [x] `ext` com a nom de variable de loop ombrejava l'API global a
+  `options/settings-sidebar.js:96` — renombrat a `extension`.
+- [x] `closest()` sobre un resultat potencialment `null` a
+  `options/settings-order.js:63-64` — separat en dos passos amb guard.
+- [x] Tancament `</UNTRUSTED_CONTENT>` que es podia truncar en resums molt
+  llargs (`summary.js`) — es reafegeix explícitament després del tall.
+- [x] Flush final del `TextDecoder`/buffer no fet a `sidebar/api.js` — l'última
+  línia SSE es perdia si el stream acabava sense una línia en blanc final.
+
+**Deixat tal com estava (decisió, no bug):** l'arbre `<details>` de fallback a
+`conceptmap.js` es manté (defensiu per si `markmap-native.js` no carrega, no
+és codi mort de veritat); `getDailyStats`/`rpd` (quota diària per model) estan
+implementats i testejats però no s'usen enlloc a producció — és una feature
+incompleta, no un bug; wire-up fora d'abast d'aquesta auditoria.
+
+**Resultat final:** 293/293 tests, lint net. Totes les troballes de
+l'auditoria funcional 2026-08-09 estan tancades.
 
 ---
 

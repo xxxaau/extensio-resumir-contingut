@@ -207,6 +207,22 @@ test("callGeminiStream - múltiples parts en un sol chunk criden onChunk per cad
 });
 
 // ---------------------------------------------------------------------------
+// Regressió: l'última línia SSE es processa encara que el stream acabi SENSE
+// una línia en blanc final (Gemini sempre en posa una, però no ens ho podem
+// permetre donar per fet — un altre servidor o proxy podria no fer-ho).
+// ---------------------------------------------------------------------------
+test("callGeminiStream - processa l'última línia SSE encara que el stream acabi sense '\\n\\n' final", async () => {
+    // Sense el "\n\n" final: la línia queda al buffer intern fins que el
+    // stream acaba, sense cap més chunk que la faci sortir del buffer.
+    const payload = `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "últim" }] } }] })}`;
+    mockFetch(makeStream(payload));
+
+    const chunks = [];
+    await callGeminiStream(DUMMY_KEY, DUMMY_MODEL, "", "", ABORT, t => chunks.push(t), null);
+    assert.deepEqual(chunks, ["últim"]);
+});
+
+// ---------------------------------------------------------------------------
 // Regressió: el timeout d'inactivitat ha de cobrir el COS de l'streaming, no
 // només l'espera de les capçaleres HTTP. Abans, un cop `fetch()` resolia, el
 // timeout es netejava per sempre — un stream que rebia el primer chunk i

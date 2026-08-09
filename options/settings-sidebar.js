@@ -93,32 +93,32 @@ function updateSidebar() {
     });
 
     let count = 0;
-    extensions.forEach(ext => {
+    extensions.forEach(extension => {
         // Build checkbox ID: resum → enableResum, conceptmap → enableConceptMap, etc.
         let checkboxId;
-        if (ext.id === "resum") {
+        if (extension.id === "resum") {
             checkboxId = "enableResum";
-        } else if (ext.id === "selectpdf") {
+        } else if (extension.id === "selectpdf") {
             checkboxId = "enablePdf";
-        } else if (ext.id === "conceptmap") {
+        } else if (extension.id === "conceptmap") {
             checkboxId = "enableConceptMap";
         } else {
-            checkboxId = "enable" + ext.id.charAt(0).toUpperCase() + ext.id.slice(1);
+            checkboxId = "enable" + extension.id.charAt(0).toUpperCase() + extension.id.slice(1);
         }
-        
+
         const checkbox = document.getElementById(checkboxId);
-        
+
         if (checkbox && checkbox.checked) {
             count++;
             const btn = document.createElement("button");
             btn.className = "nav-item dynamic-extension";
-            btn.setAttribute("data-tab", ext.id);
+            btn.setAttribute("data-tab", extension.id);
 
-            const svgEl = new DOMParser().parseFromString(ext.icon, "text/html").body.firstElementChild;
+            const svgEl = new DOMParser().parseFromString(extension.icon, "text/html").body.firstElementChild;
             btn.appendChild(svgEl);
-            btn.appendChild(document.createTextNode(ext.label));
-            
-            if (document.getElementById(`tab-${ext.id}`)?.classList.contains('active')) {
+            btn.appendChild(document.createTextNode(extension.label));
+
+            if (document.getElementById(`tab-${extension.id}`)?.classList.contains('active')) {
                 btn.classList.add('active');
             }
 

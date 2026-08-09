@@ -456,6 +456,9 @@ test("startSummary - retrunca el prompt per model quan el fallback té un contex
         "El model amb context gran NO ha de rebre el prompt truncat");
     assert.ok(promptsSent["gemini-context-petit"].includes("Text truncated"),
         "El model amb context petit (fallback) SÍ ha de rebre el prompt retruncat per al seu límit");
+    // Regressió: el tall no ha de deixar el wrapper <UNTRUSTED_CONTENT> obert.
+    assert.ok(promptsSent["gemini-context-petit"].trim().endsWith("</UNTRUSTED_CONTENT>"),
+        "Un prompt truncat ha d'acabar igualment amb el tancament </UNTRUSTED_CONTENT>");
 });
 
 // ---------------------------------------------------------------------------

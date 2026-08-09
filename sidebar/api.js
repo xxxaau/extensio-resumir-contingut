@@ -134,6 +134,30 @@ async function callGeminiStream(apiKey, modelName, systemPrompt, text, signal, o
         let lastUsageMeta = null;
         let totalBytes = 0;
 
+        function processLine(line) {
+            if (line.trim() === "") return;
+            if (!line.startsWith("data: ")) return;
+            const jsonStr = line.slice(6);
+            if (jsonStr === "[DONE]") return;
+
+            try {
+                const data = JSON.parse(jsonStr);
+                const parts = data.candidates?.[0]?.content?.parts ?? [];
+                for (const part of parts) {
+                    if (part.thought) continue; // thinking models: skip reasoning tokens
+                    if (part.text) onChunk(part.text);
+                }
+                if (data.usageMetadata) {
+                    lastUsageMeta = data.usageMetadata;
+                    if (typeof onUsage === "function") {
+                        onUsage(lastUsageMeta);
+                    }
+                }
+            } catch (e) {
+                console.warn("Error parsing stream JSON", e);
+            }
+        }
+
         try {
             while (true) {
                 const { done, value } = await reader.read();
@@ -148,37 +172,19 @@ async function callGeminiStream(apiKey, modelName, systemPrompt, text, signal, o
                     throw new Error("[010] Stream massa gran; petició cancel·lada per seguretat.");
                 }
 
-                const chunk = decoder.decode(value, { stream: true });
-                buffer += chunk;
+                buffer += decoder.decode(value, { stream: true });
 
                 const lines = buffer.split("\n");
                 buffer = lines.pop();
-
-                for (const line of lines) {
-                    if (line.trim() === "") continue;
-                    if (line.startsWith("data: ")) {
-                        const jsonStr = line.slice(6);
-                        if (jsonStr === "[DONE]") continue;
-
-                        try {
-                            const data = JSON.parse(jsonStr);
-                            const parts = data.candidates?.[0]?.content?.parts ?? [];
-                            for (const part of parts) {
-                                if (part.thought) continue; // thinking models: skip reasoning tokens
-                                if (part.text) onChunk(part.text);
-                            }
-                            if (data.usageMetadata) {
-                                lastUsageMeta = data.usageMetadata;
-                                if (typeof onUsage === "function") {
-                                    onUsage(lastUsageMeta);
-                                }
-                            }
-                        } catch (e) {
-                            console.warn("Error parsing stream JSON", e);
-                        }
-                    }
-                }
+                lines.forEach(processLine);
             }
+            // Flush final: decodifica qualsevol seqüència UTF-8 pendent al
+            // decoder i processa l'última línia del buffer — Gemini sempre
+            // tanca l'SSE amb una línia en blanc, però no ens ho podem
+            // permetre donar per fet (un altre servidor/proxy podria no
+            // fer-ho i perdríem silenciosament l'últim event).
+            buffer += decoder.decode();
+            processLine(buffer);
         } finally {
             try { reader.releaseLock(); } catch (_e) {}
         }

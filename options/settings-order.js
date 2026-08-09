@@ -60,7 +60,9 @@ function applyExtensionOrder(order) {
 
 function moveExtension(extensionId, direction) {
     const list = document.querySelector(".extensions-list");
-    const item = list.querySelector(`.extension-actions[data-extension-id="${extensionId}"]`).closest(".extension-item");
+    const actions = list.querySelector(`.extension-actions[data-extension-id="${extensionId}"]`);
+    if (!actions) return;
+    const item = actions.closest(".extension-item");
     if (!item) return;
 
     if (direction === "up") {

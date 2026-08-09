@@ -301,7 +301,10 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
             const safeLimit = Math.floor(((modelEntry && modelEntry.contextWindow) || 200_000) * 0.8);
             if (estimateTokens(text) > safeLimit) {
                 const charLimit = safeLimit * 4; // ~4 chars/token (abans era 3.5 — intencionadament canviat)
-                return text.substring(0, charLimit) + "\n\n[... Text truncated due to model limits ...]";
+                // El tall pot caure abans del tancament </UNTRUSTED_CONTENT> del
+                // wrapper (unes línies més amunt) — el reafegim explícitament
+                // perquè el bloc no quedi mai obert de cara al model.
+                return text.substring(0, charLimit) + "\n\n[... Text truncated due to model limits ...]\n</UNTRUSTED_CONTENT>";
             }
             return text;
         }

@@ -66,28 +66,6 @@ const ext = {
         },
 
         /**
-         * Closes the sidebar/side panel.
-         * Firefox: browser.sidebarAction.close()
-         * Chromium: no native close API — disables the panel temporarily
-         */
-        close: async () => {
-            if (isFirefox) {
-                if (baseApi.sidebarAction && baseApi.sidebarAction.close) {
-                    return baseApi.sidebarAction.close();
-                }
-            } else {
-                // Chromium: sidePanel has no close() — workaround: disable then re-enable
-                if (baseApi.sidePanel && baseApi.sidePanel.setOptions) {
-                    await baseApi.sidePanel.setOptions({ enabled: false });
-                    // Re-enable after a tick so user can open it again
-                    setTimeout(() => {
-                        baseApi.sidePanel.setOptions({ enabled: true });
-                    }, 100);
-                }
-            }
-        },
-
-        /**
          * Sets side panel behavior (Chromium only).
          * Configures whether clicking the action button opens the side panel.
          * No-op on Firefox (sidebarAction handles this natively).
