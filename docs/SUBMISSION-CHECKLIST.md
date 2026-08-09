@@ -33,7 +33,6 @@ Guia executiva de tots els artefactes, documentació i passos preparats per a su
 | **[SCREENSHOTS-GUIDE.md](SCREENSHOTS-GUIDE.md)** | 📸 **GUIA SCREENSHOTS** (1280×800) | ✅ **NUEVO** |
 | **[CHROME-STORE.md](CHROME-STORE.md)** | 🌐 **CHROME WEB STORE SUBMISSION** | ✅ Complet |
 | **[RELEASE-PROCESS.md](RELEASE-PROCESS.md)** | 🚀 **RELEASE WORKFLOW** (6 fases) | ✅ Complet |
-| **[AUDIT-REPORT-2026-05-19.md](AUDIT-REPORT-2026-05-19.md)** | 🔍 **AUDIT COMPLET PRE-PROD** | ✅ Complet |
 
 ### 🔧 Configuració Producció
 
@@ -111,7 +110,6 @@ Verificar que tens:
 ```
 ✅ CHROME-STORE.md         (7 passos submissió)
 ✅ RELEASE-PROCESS.md      (6 fases workflow)
-✅ AUDIT-REPORT-2026-05-19.md (complet)
 ✅ BUILD.md (source code requirement per AMO)
 ✅ SECURITY.md (vulnerabilities policy)
 ```
@@ -384,7 +382,6 @@ POST-SUBMISSION:
 | **Screenshots** | SCREENSHOTS-GUIDE.md | Submissió |
 | **Release** | RELEASE-PROCESS.md | Post-approval |
 | **Chrome details** | CHROME-STORE.md | CWS submission |
-| **Audit** | AUDIT-REPORT-2026-05-19.md | Reference |
 | **Build** | BUILD.md | Development |
 | **Security** | SECURITY.md | Reference |
 | **Privacy** | PRIVACY_POLICY.md | Linked in markets |
