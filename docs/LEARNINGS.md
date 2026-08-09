@@ -1,3 +1,26 @@
+# Lliçons tècniques (registre per sessió)
+
+Registre històric — **no es reescriu ni es retalla**, només s'hi afegeix una
+entrada nova al capdamunt per sessió. Consulta aquest índex abans d'afegir-hi
+res, per no duplicar una lliçó ja capturada. Es referencia per nom des
+d'altres docs (p. ex. `CREAR-PLUGIN.md`).
+
+## Índex
+
+- Auditoria funcional + catàleg de models — Sessió 2026-08-09
+- Release v2.6.2 — Sessió 2026-07-27
+- Release v2.6.1 — Sessió 2026-06-29
+- Release v2.5.0 — Sessió 2026-06-12 (tarda)
+- Cross-browser: side panel i detecció de navegador — Sessió 2026-06-12
+- Auditoria pre-producció — Sessió 2026-06-10 (v2.4.0)
+- Canvis — Sessió 2026-06-10 (plugins: Explica-ho fàcil + PDF ordenable)
+- Canvis — Sessió 2026-06-09 (pre-producció)
+- Fix — Sessió 2026-06-10: la "bombolla" dels botons del mapa
+- Aprenentatges — Sessió v2.3.1+ (2026-06-05)
+- Aprenentatges — Sessió v2.2.10 (2026-05-22)
+
+---
+
 # Auditoria funcional + catàleg de models — Sessió 2026-08-09
 
 ## Workflow que ha funcionat bé: 3 agents en paral·lel + contrastar amb els tests existents

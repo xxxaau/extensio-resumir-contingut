@@ -408,7 +408,7 @@ Les icones compartides entre múltiples components van a **`shared/icons.js`** (
 
 - Executar `npx eslint sidebar/elmeuplugin.js` abans de cometre
 - Afegir globals a `eslint.config.mjs` si cal
-- Executar `npm test` -- tots els tests (243) han de passar
+- Executar `npm test` -- tots els tests han de passar
 - Afegir tests propis a `tests/` si el plugin té lògica parsejable
 
 ## Trampes conegudes (casos reals)

@@ -18,17 +18,22 @@ L'inventari complet amb categories i fonts de veritat és a
 - **API-KEY-GOOGLE.md** — Com obtenir la clau d'API de Google (pas a pas)
 
 ### Desenvolupament i arquitectura
-- **ARCHITECTURE.md** · **PROJECT-STRUCTURE.md** · **CREAR-PLUGIN.md** ·
+- **DEV-CONTEXT.md** · **ARCHITECTURE.md** · **CREAR-PLUGIN.md** ·
   **CONCEPTMAP-FEATURES.md** · **BUILD.md** · **CONTRIBUTING.md** ·
-  **DEV-CONTEXT.md** · **STORAGE_ISOLATION.md**
+  **STORAGE_ISOLATION.md**
 
-### Seguretat, privadesa i tercers
-- **SECURITY.md** · **PRIVACY_POLICY.md** · **THIRD_PARTY.md** · **MODELS-WORKFLOW.md**
+### Seguretat i privadesa
+- **SECURITY.md** · **PRIVACY_POLICY.md**
 
 ### Marca, store i release
 - **COMUNICACIO.md** · **MARKETS-COPY.md** · **listing-texts.md** ·
   **CHROME-STORE.md** · **RELEASE-PROCESS.md** · **SUBMISSION-CHECKLIST.md** ·
   **SCREENSHOTS-GUIDE.md**
+
+### Registres i backlog
+- **BACKLOG.md** (idees pendents, no històric) · **CHANGELOG.md** (canvis
+  publicats) · **LEARNINGS.md** (lliçons tècniques sessió a sessió, amb
+  taula de continguts al capdamunt)
 
 ---
 
@@ -37,9 +42,9 @@ L'inventari complet amb categories i fonts de veritat és a
 | Role | Start Here | Then Read |
 |------|-----------|-----------|
 | **End User** | [`../README.md`](../README.md) | [`user-guide/GUIA-INICI.md`](./user-guide/GUIA-INICI.md) |
-| **Contributor** | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | [`../BUILD.md`](../BUILD.md) |
-| **Maintainer** | [`../README.md`](../README.md) | [`ARCHITECTURE.md`](./ARCHITECTURE.md) |
-| **Security Auditor** | [`../SECURITY.md`](../SECURITY.md) | [`../docs/THIRD_PARTY.md`](../docs/THIRD_PARTY.md) |
+| **Contributor** | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | [`BUILD.md`](./BUILD.md) |
+| **Maintainer / Claude Code** | [`../CLAUDE.md`](../CLAUDE.md) | [`DEV-CONTEXT.md`](./DEV-CONTEXT.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md) |
+| **Security Auditor** | [`SECURITY.md`](./SECURITY.md) | [`PRIVACY_POLICY.md`](./PRIVACY_POLICY.md), [`../VENDORS.md`](../VENDORS.md) |
 
 ---
 
@@ -49,8 +54,11 @@ L'inventari complet amb categories i fonts de veritat és a
 - **Link between related docs** for cross-reference
 - **Use examples & screenshots** in user-guide docs
 - **Document breaking changes** in [`CHANGELOG.md`](./CHANGELOG.md)
+- **No fixis a mà valors que canvien sols** (nombre de tests, versió) — apunta
+  a la comanda/fitxer que els genera. Vegeu "Valors que es desactualitzen
+  sols" a [`DOCS-INDEX.md`](./DOCS-INDEX.md).
 - **Cap doc es shippa** als paquets: `docs/` queda fora dels ZIPs de l'extensió
 
 ---
 
-**Last Updated**: 2026-05-29
+**Last Updated**: 2026-08-09

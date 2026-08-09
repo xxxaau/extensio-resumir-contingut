@@ -1,225 +1,15 @@
 # Backlog de millores
 
-Llista de millores pendents, no prioritzades. Cada entrada inclou context i criteris d'acceptació mínims.
+Llista de millores **pendents**, no prioritzades. Cada entrada inclou context
+i criteris d'acceptació mínims.
 
----
-
-## Auditoria funcional 2026-08-09 (✅ TANCADA)
-
-**Context:** auditoria de codi (3 agents en paral·lel, sense navegador) sobre
-tot `sidebar/`, `options/`, `shared/`, `background.js`, `ext.js`, contrastant
-amb els tests existents (275/275 passaven abans i després). Els fixes clars i
-de baix risc ja s'han aplicat (missatge d'estat d'«Actualitzar models»,
-migració d'`"anki"` a `applyExtensionOrder`, `.catch()` a `setPanelBehavior`,
-fuita de listeners del mapa conceptual). **Fets amb tests de regressió
-(2026-08-09):**
-
-- [x] **`abortController` era `null` mentre s'estava generant** (`sidebar.js`).
-  Fix: `ctx.setAbortController()` es crida síncronament dins `startSummary`,
-  abans del primer `await`, en lloc d'esperar que la promesa es resolgui.
-- [x] **Un PDF local "encallat" contaminava resums posteriors**
-  (`summary.js`, `sidebar.js`). Fix: `ctx.clearContentPreload()` neteja el
-  preload d'un sol ús just després de consumir-lo.
-- [x] **Targetes Anki cachejades eren irrecuperables des de l'Historial**
-  (`summary.js`, `history.js`). Fix: branca `anki` a `loadHistoryEntry`
-  (restaura `renderAnkiPanel`); si el model no retorna targetes vàlides, ja
-  no es cacheja i es mostra un avís. Nota: «Genera més»/«Afinar» expliquen
-  que no estan disponibles per a targetes reobertes des de l'Historial (no
-  hi ha el text original de la pàgina fora d'una sessió de generació activa).
-
-**Fets amb tests de regressió (2026-08-09, segona tanda):**
-
-- [x] **Abort entre models del bucle de fallback** (`summary.js`). Guard
-  defensiu afegit (inabastable avui amb el codi actual, però es manté per si
-  un futur canvi hi introdueix un `await`). De pas, 2 retorns silenciosos
-  reals en avortar durant el fetch de contingut (`if (signal.aborted) return`
-  sense missatge) ara mostren "Generació aturada per l'usuari."
-- [x] **`sortModelsByPriority` ordena malament els Flash Lite** (`shared/models.js`).
-  Decisió (confirmada amb l'usuari): el `DEFAULT_MODEL_ID` sempre surt primer
-  al desplegable, independentment de versió.
-- [x] **`ensureFavoriteModels` torna a afegir el model per defecte a cada
-  càrrega** (`shared/models.js`). Decisió (confirmada amb l'usuari): ja no es
-  torna a forçar — si l'usuari el desmarca explícitament, es respecta.
-- [x] **Truncament de tokens no es recalcula en canviar de model al fallback**
-  (`summary.js`). El truncament ara es recalcula per a CADA model provat
-  (`truncateForModel`), no un sol cop per al model preferit.
-- [x] **Rebuild de l'índex de cache no s'activava si la clau simplement no
-  existia** (`sidebar/cache.js`). `get(KEY)` sense valor per defecte + l'índex
-  reconstruït es torna a escriure a storage.
-- [x] **`summarize-selection` sense text: rebuig de promesa no gestionat**
-  (`background.js`). `.catch()` adjuntat a `ext.sidebar.open()` en el moment
-  de crear la promesa, no on s'espera més tard.
-- [x] **"Genera més"/"Afinar" d'Anki sense guard de re-entrada**
-  (`sidebar/anki.js`). Flag de mòdul (`ankiGenerateInFlight`) + `AbortController`
-  real en lloc de `undefined`.
-
-- [x] **Timeout de 60s no cobria el cos de l'streaming** (`sidebar/api.js`).
-  Ara és un timeout d'INACTIVITAT que es reinicia a cada chunk rebut (i en
-  rebre les capçaleres), no un deadline únic que es netejava per sempre just
-  després de `fetch()`. Verificat empíricament: sense el fix, un stream que
-  s'encalla després del primer chunk penja per sempre (el test amb el codi
-  antic no arriba mai a resoldre's); amb el fix, s'avorta correctament.
-
-**Menor / codi mort — fets (2026-08-09, tercera tanda):**
-
-- [x] `ext.sidebar.close()` (`ext.js`) — eliminat, sense cap crida enlloc
-  (incloïa el seu propi bug latent: el `setTimeout` de re-enable a Chromium
-  podia deixar el panell desactivat si el service worker moria pel mig).
-- [x] Icones sense ús a `shared/icons.js` (`fit`, `expandAll`, `collapseAll`,
-  `downloadPng`, `fullPage`) — eliminades. **Nota:** `close` semblava sense ús
-  amb un grep directe, però s'usa indirectament via el paràmetre `icons` de
-  `fullscreenOverlayFunc` (rebut com a `MARKMAP_ICONS` sencer via
-  `executeScriptSafe({..., args: [..., MARKMAP_ICONS]})`) — detectat i
-  revertit abans de fer cap commit.
-- [x] `ext` com a nom de variable de loop ombrejava l'API global a
-  `options/settings-sidebar.js:96` — renombrat a `extension`.
-- [x] `closest()` sobre un resultat potencialment `null` a
-  `options/settings-order.js:63-64` — separat en dos passos amb guard.
-- [x] Tancament `</UNTRUSTED_CONTENT>` que es podia truncar en resums molt
-  llargs (`summary.js`) — es reafegeix explícitament després del tall.
-- [x] Flush final del `TextDecoder`/buffer no fet a `sidebar/api.js` — l'última
-  línia SSE es perdia si el stream acabava sense una línia en blanc final.
-
-**Deixat tal com estava (decisió, no bug):** l'arbre `<details>` de fallback a
-`conceptmap.js` es manté (defensiu per si `markmap-native.js` no carrega, no
-és codi mort de veritat); `getDailyStats`/`rpd` (quota diària per model) estan
-implementats i testejats però no s'usen enlloc a producció — és una feature
-incompleta, no un bug; wire-up fora d'abast d'aquesta auditoria.
-
-**Resultat final:** 293/293 tests, lint net. Totes les troballes de
-l'auditoria funcional 2026-08-09 estan tancades.
-
----
-
-## v2.6.1 — fixes (proper bump)
-
-**Context (2026-06-26):** recollit en tancar la sessió del web propi. **Fixes de codi resolts el 2026-06-29**; queda fer el bump **2.6.1** (patch).
-
-- [x] **Botó «Targetes Anki» desactivat quan hi ha resum a la sidebar:** el botó es desactivava a l'inici de qualsevol generació (`allActionBtns` a `setGeneratingState`) però no es reactivava mai (faltava a la branca `else` i a `resetUI`). Afegit `ankiBtn.disabled = false` als dos llocs + test de regressió. (commit `a95bddb`)
-- [x] **Dev a Edge no agafa l'última versió:** el script `dev:chromium` ja generava codi fresc; la causa real era que la carpeta dev tenia el mateix nom i versió que l'extensió de la store ("Resumir" v2.6.0) → impossible distingir-les a Edge (es provava la de la store). Ara `dev:chromium` marca el nom com a **«Resumir (DEV)»**. (commit `6c16064`; vegeu [[chromium-dev-load]].)
-- [x] **(procés) Revisió de fitxers esborrables abans del bump** — institucionalitzat com a pas permanent al PRE-RELEASE de `RELEASE-PROCESS.md` (mateix commit `f1f7a6e`, 2026-06-26). Verificat net (2026-08-09): sense `temp/`, `.pw-userdata/`, `test-results/` ni ZIPs solts.
-
-**Criteris d'acceptació:**
-- [x] El botó de Targetes Anki s'activa correctament quan hi ha un resum a la sidebar. (verificat en viu a Edge + test unitari; 274/274)
-- [x] La build dev a Edge mostra el codi actual i és distingible («Resumir (DEV)»).
-- [x] Bump 2.6.1 publicat (seguint RELEASE-PROCESS). ✅ 2026-06-29 (commit `da91ff9` + tag `v2.6.1`)
-
----
-
-## Fix: Hacker News no enviava el text de l'article enllaçat (✅ VALIDAT EN VIU)
-
-**Context (2026-07-03):** L'usuari va reportar que en resumir un fil de HN només
-s'enviava la discussió (comentaris), mai el contingut de l'article enllaçat.
-
-**Causa arrel:** el fetch de l'article es feia dins la funció injectada al
-content-script (`extractHackerNewsFromDOM`, món isolated). A Chromium/Edge (MV3)
-els `fetch` cross-origin des d'un content-script els bloqueja CORS → el fetch
-fallava en silenci → `articleText` sempre buit. El propi codi del fetch de PDF
-(`content.js`) ja documentava aquesta limitació i el patró correcte (fetch des
-del context del sidebar, amb `<all_urls>`, sense restriccions CORS). El test
-antic no ho detectava perquè mockejava `fetch` perquè llancés.
-
-**Fix aplicat:**
-- `sidebar/extractors.js`: `extractHackerNewsFromDOM` ara només llegeix el DOM
-  (retorna `{ title, comments, articleUrl }`, sense fetch).
-- `sidebar/content.js`: nou `fetchLinkedArticleText(url)` que corre al **sidebar**
-  (mateix patró que el PDF: fetch directe → si falla, demana `<all_urls>` i
-  reintenta). Guard SSRF sobre la URL inicial I la URL final després de seguir
-  redireccions (`resp.url`), ja que `redirect: "manual"` trencava els articles
-  que redirigeixen (consent/geo/www) i calia permetre `"follow"`.
-- Es va descobrir i corregir de pas un bug latent al guard SSRF (màscara de bits
-  errònia per a `192.168.0.0/16` i `100.64.0.0/10`, mai detectava aquests
-  rangs) — reescrit amb comparació per octets.
-- `sidebar/sidebar.html`: carrega `Readability.js` (abans només s'injectava a
-  la pàgina; ara cal també al sidebar per parsejar l'article fetchejat allà).
-- Tests: 2 tests HN actualitzats al contracte nou + 1 test de regressió SSRF
-  (redirecció a IP interna). 275/275 tests, lint net.
-
-**Estat:** codi + tests fets i verificats; build DEV (`build_chromium_dev`)
-regenerat. **Validat en viu a Edge** (2026-07-27) amb l'harness
-`tests/repro-hn-extract.mjs`, que carrega `build_chromium_dev` a l'Edge real via
-Playwright i crida `getPageContent()` sobre un fil de HN de debò. **Fet** (`6105dce`).
-Queda només afegir-ho al CHANGELOG al pròxim «prepara vX.Y.Z» (és un canvi visible
-per a l'usuari: els resums de HN ara inclouen l'article enllaçat).
-
-**Criteris d'acceptació:**
-- [x] Resumir un fil de HN amb article enllaçat (`id=48762725`) inclou la
-  secció `ARTICLE:` amb el contingut de l'enllaç, a més de la discussió.
-  → 77.017 caràcters, secció `ARTICLE:` present, 2,7 s, heap 3→4 MB.
-- [x] No hi ha regressió en fils HN sense article extern (`articleUrl` intern).
-  → Ask HN `id=49065668`: cau correctament a «Top Discussion Comments», sense
-  secció `ARTICLE:`, 148 ms.
-- [x] Commit fet després de validar en viu. → `6105dce`
-
-**Nota — el penjat de RAM d'Edge no era d'aquest fix.** Durant la prova en viu,
-carregar l'extensió a l'Edge de l'usuari va penjar la màquina dues vegades. Es va
-descartar per mesura directa: l'extensió carregada a l'Edge real dona 337 ms fins
-a `load` del side panel, heap de 3-4 MB, ~700 MB en 12 processos estables (normal
-per a un Edge nou), cap reinici del service worker i cap error. La causa era
-pressió de memòria de la màquina (15,6 GB totals al 78 % d'ús, amb Firefox,
-Outlook i dues sessions de Claude Code al damunt): en afegir-hi un Edge nou,
-Windows entra en intercanvi a disc i es penja tot. Monitor per si torna a passar:
-`D:\tmp\watch-mem.ps1`.
-
----
-
-## Apuntar els enllaços públics al web propi (PROPER RELEASE)
-
-**Context (2026-06-26):** El web propi ja és viu a **https://xxxaau.github.io/resumir/** (vegeu `web/` i `.github/workflows/pages.yml`). Cal redirigir-hi els enllaços públics que ara apunten a GitHub. El canvi de `settings.html` viatja a l'usuari, així que va **lligat a una release de l'extensió**.
-
-**Estat (2026-06-29):** canvis de codi fets (commit `46b0ac0`); queda l'acció manual a l'AMO durant el release.
-
-- [x] `options/settings.html`: l'enllaç «Com obtinc una clau d'API?» → `https://xxxaau.github.io/resumir/guia/clau-api/` (URL verificada en viu, no 404).
-- [x] **AMO**: «Pàgina d'inici» (ara `github.com/xxxaau/resumir`) → el web. (URL de suport i Política de privadesa poden seguir a GitHub.) — **fet manualment al dashboard (confirmat 2026-07-03).**
-- [x] `README.md`: afegit badge al lloc web propi.
-
-**Criteris d'acceptació:**
-- [x] settings.html i README resolen al web (no 404).
-- [x] AMO «Pàgina d'inici» actualitzada al web després del release. ✅ 2026-07-03
-
----
-
-## Coherència visual dels botons de control del mapa conceptual (✅ FET, 2026-06-26)
-
-**Context (2026-06-05):** Els botons de control del mapa conceptual (sidebar + fullscreen) s'han unificat amb estil planer (32×32, padding 4px, border-radius 4px, hover amb background) per coincidir amb els botons de la toolbar.
-
-**Resolt:**
-- [x] Els canvis CSS s'apliquen correctament al sidebar (`.markmap-control-btn`) i al fullscreen (`.markmap-fs-btn`).
-- [x] El padding 4px i l'SVG 24×24 donen el mateix aspecte que els botons d'acció del menú de resumir.
-- [x] Verificat en local (l'aparent problema era cache del sidebar panel de Firefox).
-
----
-
-## Renombrar el repositori a `resumir` (✅ COMPLETAT amb v2.6.0, 2026-06-26)
-
-**Context (2026-06-12):** Decisió del propietari: el repo `extensio-resumir-contingut`
-passa a dir-se **`resumir`**, alineat amb la marca (vegeu `docs/COMUNICACIO.md`).
-Cal fer-ho coordinat amb un bump perquè els manifests publicats duen la
-`homepage_url` i els usuaris de Chromium instal·len des de GitHub Releases.
-
-**Inventari d'URLs a actualitzar (51 ocurrències, 18 fitxers — verificat amb
-`grep -r "extensio-resumir-contingut"`):**
-
-*Dins de l'extensió (s'envia als usuaris):*
-- [x] `manifest.base.json` → `homepage_url` (+ regenerar `manifest.json` i `manifest.chromium.json` amb `npm run manifests:gen`)
-- [x] `options/settings.js` → enllaços a issues/repo
-
-*Meta del repo:*
-- [x] `package.json` → `repository.url`
-- [x] `README.md` → badges (CI, releases, sponsors), enllaços d'instal·lació Chromium i issues/discussions
-- [x] `docs/`: `BUILD.md`, `CONTRIBUTING.md`, `MARKETS-COPY.md`, `listing/listing-texts.md`, `marketplace/` (CHROME-STORE, MARKETS-COPY, RELEASE-PROCESS, SUBMISSION-CHECKLIST), `user-guide/GUIA-INICI.md`
-- [x] `scripts/prepare-release.mjs`
-
-*Fora del repo (manual):*
-- [x] GitHub → Rename a `resumir` (`gh repo rename`, 2026-06-26; GitHub manté redireccions de l'URL antiga per a web i git, però es trenquen si mai es crea un repo nou amb el nom vell — no reutilitzar-lo)
-- [x] AMO → panell de l'extensió: Pàgina d'inici, URL de suport i Política de privacitat (actualitzat pel propietari, 2026-06-26)
-- [x] Remot local: `git remote set-url origin https://github.com/xxxaau/resumir.git`
-
-**Criteris d'acceptació:**
-- [x] `grep -r "extensio-resumir-contingut"` només retorna documents històrics (`.dev/`, `.opencode/plans/`, CHANGELOG) — mai codi, manifests ni docs vius.
-- [x] El badge de CI del README funciona amb el nom nou.
-- [x] La release del bump següent publica els ZIPs sota el repo renombrat i els enllaços del README hi apunten. (v2.6.0)
-- [x] AMO actualitzat amb les URLs noves.
+> **Convenció (des de 2026-08-09):** quan una entrada es completa, es treu
+> d'aquest fitxer — no s'hi arxiva marcada com a `✅`. El registre de "què
+> s'ha fet" ja existeix i és `docs/CHANGELOG.md` (canvis d'usuari) +
+> `docs/LEARNINGS.md` (lliçons tècniques de la sessió) + l'historial de git.
+> Mantenir-ho aquí també és feina duplicada que es desactualitza igual de
+> ràpid (vegeu la neteja feta avui: 6 de 10 seccions ja estaven 100% fetes,
+> el 63% del fitxer).
 
 ---
 
@@ -255,7 +45,7 @@ Cal fer-ho coordinat amb un bump perquè els manifests publicats duen la
 
 **Context (2026-05-27):** Actualment tota la interfície d'usuari està en català dur — ~200+ cadenes repartides entre ~18 fitxers (3 HTML + 15 JS). No existeix cap infraestructura d'internacionalització: ni `_locales/`, ni `default_locale` als manifests, ni `chrome.i18n`, ni `__MSG__` als HTML.
 
-La decisió d'idioma ja es va identificar com a pendent al TO-DO.md (veure «Decisions estratègiques», punt 3), i el README descriu l'extensió com a catalana. L'objectiu és habilitar contribucions externes d'idiomes i preparar l'extensió per a un públic internacional.
+L'objectiu és habilitar contribucions externes d'idiomes i preparar l'extensió per a un públic internacional.
 
 **Comportament esperat:**
 - L'extensió detecta l'idioma del navegador i mostra la UI en l'idioma corresponent.
@@ -284,7 +74,7 @@ La decisió d'idioma ja es va identificar com a pendent al TO-DO.md (veure «Dec
 - [ ] L'extensió funciona correctament en navegador configurat en català i en anglès.
 - [ ] No hi ha regressió visual ni funcional.
 - [ ] Les cadenes noves es poden afegir sense tocar codi (només afegir clau als messages.json).
-- [ ] Els tests existents continuen passant (207/207).
+- [ ] Els tests existents continuen passant (`npm test` — vegeu el compte actual a `package.json`/sortida de `npm test`, no el fixis aquí).
 
 **Fitxers probables a modificar:**
 - `_locales/ca/messages.json` (nou)
@@ -305,7 +95,7 @@ La decisió d'idioma ja es va identificar com a pendent al TO-DO.md (veure «Dec
 funciona amb Google Gemini i el codi hi està **fortament acoblat, sense cap capa
 d'abstracció de proveïdor**:
 
-- `sidebar/api.js:47-71` (`callGeminiStream`) té l'endpoint
+- `sidebar/api.js` (`callGeminiStream`) té l'endpoint
   (`generativelanguage.googleapis.com/.../streamGenerateContent?alt=sse`) i el
   format del body hardcoded, amb una branca especial per a Gemma vs Gemini.
 - El parsing de la resposta assumeix l'SSE de Gemini i `usageMetadata`
@@ -338,6 +128,11 @@ fricció de l'API key de Google, que motiva també la guia d'API key de l'usuari
 
 **Cost:** ALT. El **primer** proveïdor nou és el car (dissenyar l'abstracció);
 afegir-ne més després és incremental.
+
+**Nota (2026-08-09):** ja hi ha un pla d'implementació detallat en dues fases
+(refactor de la costura a `sidebar/api.js` sense canvi de comportament, després
+adaptador OpenRouter) discutit i aparcat en una sessió anterior — a retrobar
+si es reprèn aquesta idea.
 
 **Criteris d'acceptació mínims:**
 - [ ] Es pot resumir amb un proveïdor compatible amb OpenAI (a triar) i amb Gemini.

@@ -65,7 +65,7 @@ Three files are vendored (pre-built) in the repository:
 | `vendor/pdf.min.js` | [pdf.js](https://mozilla.github.io/pdf.js/) v3.11.174 (legacy UMD) | PDF parsing (text layer extraction) |
 | `vendor/pdf.worker.min.js` | pdf.js v3.11.174 (legacy UMD) | PDF worker (CSP-safe, loaded via `runtime.getURL`) |
 
-SHA-256 hashes for all these files are recorded in `THIRD_PARTY.md` and verified by:
+SHA-256 hashes for all these files are recorded in `scripts/verify-vendor.mjs` and verified by:
 
 ```bash
 npm run vendor:verify

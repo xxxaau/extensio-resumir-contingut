@@ -16,14 +16,14 @@ Els fitxers vendoritzats al repositori són:
 | `vendor/pdf.worker.min.js`   | [mozilla/pdf.js](https://github.com/mozilla/pdf.js) (3.11.174 legacy) | ~1.1 MB | Apache-2.0 |
 
 Els hashes SHA-256 d'aquests fitxers estan registrats a
-[`docs/THIRD_PARTY.md`](docs/THIRD_PARTY.md) i es verifiquen amb:
+[`scripts/verify-vendor.mjs`](scripts/verify-vendor.mjs) i es verifiquen amb:
 
 ```bash
 npm run vendor:verify
 ```
 
 Per a actualitzar `pdf.js`, descarregar manualment la versió legacy de `pdfjs-dist`
-i actualitzar els hashes a `scripts/verify-vendor.mjs` i `docs/THIRD_PARTY.md`.
+i actualitzar els hashes a `scripts/verify-vendor.mjs`.
 
 ## Vendors històricament eliminats
 

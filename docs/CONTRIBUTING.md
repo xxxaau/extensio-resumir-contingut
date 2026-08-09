@@ -53,7 +53,7 @@ npm run dev
 
 - **Lint:** ESLint sense avisos (0 warnings). Corregeix els errors; afegeix `// eslint-disable-line` si un avís és justificat.
 - **Globals cross-file:** L'extensió usa `<script>` tags (no mòduls). Les constants/funcions compartides entre fitxers s'han de registrar a `eslint.config.mjs` → `extensionGlobals` o `settingsGlobals`. Si no, ESLint donarà falsos `no-undef`. Les variables registrades s'ignoren automàticament a `no-unused-vars`.
-- **Tests:** La suite actual té 243 tests. Qualsevol funcionalitat nova requereix els seus tests corresponents.
+- **Tests:** Executa `npm test` per veure el compte actual. Qualsevol funcionalitat nova requereix els seus tests corresponents.
 - **Noms:** utilitza camelCase per a variables/funcions, kebab-case per a fitxers. Preferiblement en català per als comentaris.
 
 ### Commit
@@ -107,7 +107,7 @@ npm run dev
 │   ├── pdf.min.js          # pdf.js (extracció de text PDF)
 │   └── pdf.worker.min.js   # Worker pdf.js
 │
-├── tests/                  # 243 tests unitaris i E2E
+├── tests/                  # tests unitaris i E2E (npm test)
 │   └── *.test.mjs          # Node.js built-in test runner
 │
 └── scripts/                # Build + release (tot Node.js)

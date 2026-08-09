@@ -23,7 +23,7 @@ npm run manifests:gen   # Regenerate manifest.json + manifest.chromium.json from
 npm run version:sync    # Sync version across all manifests
 
 # Quality
-npm test             # Run all 243 unit tests (Node.js built-in test runner)
+npm test             # Run all unit tests (Node.js built-in test runner)
 npm run lint         # ESLint (0 warnings (`--max-warnings 0`))
 npm run prerelease   # Full automated pre-release audit
 

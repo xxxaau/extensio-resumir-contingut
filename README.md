@@ -129,10 +129,10 @@ sidebar/
   conceptmap-filename.js    # Generador del nom de fitxer PNG (funció pura)
 options/                    # Pàgina de configuració
 shared/                     # Models i valors per defecte compartits
-tests/                      # 243 tests unitaris i d'integració
+tests/                      # suite de tests unitaris i d'integració (npm test)
 ```
 
-Consulta [docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md) per a mapa de projectes, [docs/MODELS-WORKFLOW.md](docs/MODELS-WORKFLOW.md) per a detalls tècnics d'API i models, o [docs/CONCEPTMAP-FEATURES.md](docs/CONCEPTMAP-FEATURES.md) per al disseny del mapa conceptual.
+Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) per al graf de components, [docs/DEV-CONTEXT.md](docs/DEV-CONTEXT.md) per al context tècnic complet, o [docs/CONCEPTMAP-FEATURES.md](docs/CONCEPTMAP-FEATURES.md) per al disseny del mapa conceptual.
 
 ---
 
