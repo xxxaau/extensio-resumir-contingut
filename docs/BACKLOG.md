@@ -53,12 +53,12 @@ fuita de listeners del mapa conceptual). **Fets amb tests de regressió
   (`sidebar/anki.js`). Flag de mòdul (`ankiGenerateInFlight`) + `AbortController`
   real en lloc de `undefined`.
 
-**Queda pendent:**
-
-- [ ] **Timeout de 60s no cobreix el cos de l'streaming** (`sidebar/api.js:79-96`),
-  només l'espera de capçaleres HTTP. Requereix un timer d'inactivitat que es
-  reiniciï a cada chunk, no un deadline únic — més difícil de testejar
-  (`t.mock.timers` o timeout injectable).
+- [x] **Timeout de 60s no cobria el cos de l'streaming** (`sidebar/api.js`).
+  Ara és un timeout d'INACTIVITAT que es reinicia a cada chunk rebut (i en
+  rebre les capçaleres), no un deadline únic que es netejava per sempre just
+  després de `fetch()`. Verificat empíricament: sense el fix, un stream que
+  s'encalla després del primer chunk penja per sempre (el test amb el codi
+  antic no arriba mai a resoldre's); amb el fix, s'avorta correctament.
 
 **Menor / codi mort (no urgent):** `ext.sidebar.close()` sense cap crida
 enlloc; icones sense ús a `shared/icons.js`; arbre `<details>` de fallback a

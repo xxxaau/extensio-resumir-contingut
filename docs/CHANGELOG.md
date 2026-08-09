@@ -47,6 +47,10 @@ i el projecte segueix el [Versionatge Semàntic](https://semver.org/spec/v2.0.0.
 - **«Genera més»/«Afinar» de les targetes Anki amb doble clic.** Una segona
   petició mentre la primera encara s'estava generant podia duplicar o
   entrellaçar targetes; ara s'ignora fins que la primera acaba.
+- **Un resum que s'encallava a mig streaming es quedava penjat per sempre.**
+  El timeout de seguretat (60s) només cobria l'espera inicial de resposta
+  del servidor; ara es reinicia a cada fragment rebut i també protegeix el
+  cos de l'streaming.
 
 ### Canviat
 - **Catàleg de models de Gemini actualitzat** (2026-08-09): preus i

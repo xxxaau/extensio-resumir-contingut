@@ -10,6 +10,14 @@
 const MAX_STREAM_BYTES = 5 * 1024 * 1024;
 
 /**
+ * Timeout d'INACTIVITAT (es reinicia a cada chunk rebut), no un deadline fix
+ * des de l'inici. Cobreix tant l'espera de les capçaleres HTTP com el cos de
+ * l'streaming — un stream que s'encalla a mig camí (connexió oberta, servidor
+ * que deixa d'enviar dades) també queda protegit.
+ */
+const STREAM_IDLE_TIMEOUT_MS = 60_000;
+
+/**
  * Returns curated model info (prices in EUR, rpd) for a given model ID.
  * Falls back to DEFAULT_MODEL_INFO for unknown models.
  */
@@ -70,19 +78,24 @@ async function callGeminiStream(apiKey, modelName, systemPrompt, text, signal, o
         };
     }
 
-    // Combine user abort signal with a 60s timeout. El signal d'usuari és
-    // optatiu (p.ex. la regeneració de targetes Anki no en passa cap), així que
-    // filtrem els buits abans de combinar: AbortSignal.any() peta amb undefined.
+    // Combine user abort signal with an IDLE timeout (es reinicia a cada
+    // chunk via resetIdleTimeout, no és un deadline únic des de l'inici).
+    // El signal d'usuari és optatiu (p.ex. la regeneració de targetes Anki no
+    // en passa cap), així que filtrem els buits abans de combinar:
+    // AbortSignal.any() peta amb undefined.
     const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), 60_000);
+    let idleTimeoutId = setTimeout(() => timeoutController.abort(), STREAM_IDLE_TIMEOUT_MS);
+    function resetIdleTimeout() {
+        clearTimeout(idleTimeoutId);
+        idleTimeoutId = setTimeout(() => timeoutController.abort(), STREAM_IDLE_TIMEOUT_MS);
+    }
     const signals = [signal, timeoutController.signal].filter(Boolean);
     const fetchSignal = (typeof AbortSignal.any === 'function')
         ? AbortSignal.any(signals)
         : signal;
 
-    let response;
     try {
-        response = await fetch(url, {
+        const response = await fetch(url, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -91,90 +104,93 @@ async function callGeminiStream(apiKey, modelName, systemPrompt, text, signal, o
             body: JSON.stringify(body),
             signal: fetchSignal
         });
-    } finally {
-        clearTimeout(timeoutId);
-    }
+        // Capçaleres rebudes — reinicia el rellotge per a l'streaming del cos.
+        resetIdleTimeout();
 
-    if (!response.ok) {
-        let errorMsg = response.statusText;
+        if (!response.ok) {
+            let errorMsg = response.statusText;
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.error?.message || errorMsg;
+            } catch(e) {}
+            const err = new Error(`[007] Error API (${response.status}): ${errorMsg}`);
+            err.status = response.status;
+            throw err;
+        }
+
+        // Reject responses whose body is not the SSE stream we expect. A reverse
+        // proxy or captive portal returning HTML would otherwise feed garbage to
+        // the JSON parser line-by-line.
+        const ct = response.headers.get("content-type") || "";
+        if (!ct.includes("text/event-stream")) {
+            throw new Error(`[009] Resposta inesperada del servidor (Content-Type: ${ct || "absent"}).`);
+        }
+
+        if (!response.body) throw new Error("[008] ReadableStream not supported");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let lastUsageMeta = null;
+        let totalBytes = 0;
+
         try {
-            const errorData = await response.json();
-            errorMsg = errorData.error?.message || errorMsg;
-        } catch(e) {}
-        const err = new Error(`[007] Error API (${response.status}): ${errorMsg}`);
-        err.status = response.status;
-        throw err;
-    }
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                resetIdleTimeout(); // ha arribat un chunk — el stream és viu
 
-    // Reject responses whose body is not the SSE stream we expect. A reverse
-    // proxy or captive portal returning HTML would otherwise feed garbage to
-    // the JSON parser line-by-line.
-    const ct = response.headers.get("content-type") || "";
-    if (!ct.includes("text/event-stream")) {
-        throw new Error(`[009] Resposta inesperada del servidor (Content-Type: ${ct || "absent"}).`);
-    }
+                totalBytes += value?.byteLength || 0;
+                if (totalBytes > MAX_STREAM_BYTES) {
+                    // Defence against runaway responses (proxy injection, mistuned
+                    // model returning gigabytes). 5 MB covers any normal summary.
+                    try { reader.cancel(); } catch (_e) {}
+                    throw new Error("[010] Stream massa gran; petició cancel·lada per seguretat.");
+                }
 
-    if (!response.body) throw new Error("[008] ReadableStream not supported");
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
-    let lastUsageMeta = null;
-    let totalBytes = 0;
+                const lines = buffer.split("\n");
+                buffer = lines.pop();
 
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+                for (const line of lines) {
+                    if (line.trim() === "") continue;
+                    if (line.startsWith("data: ")) {
+                        const jsonStr = line.slice(6);
+                        if (jsonStr === "[DONE]") continue;
 
-            totalBytes += value?.byteLength || 0;
-            if (totalBytes > MAX_STREAM_BYTES) {
-                // Defence against runaway responses (proxy injection, mistuned
-                // model returning gigabytes). 5 MB covers any normal summary.
-                try { reader.cancel(); } catch (_e) {}
-                throw new Error("[010] Stream massa gran; petició cancel·lada per seguretat.");
-            }
-
-            const chunk = decoder.decode(value, { stream: true });
-            buffer += chunk;
-
-            const lines = buffer.split("\n");
-            buffer = lines.pop();
-
-            for (const line of lines) {
-                if (line.trim() === "") continue;
-                if (line.startsWith("data: ")) {
-                    const jsonStr = line.slice(6);
-                    if (jsonStr === "[DONE]") continue;
-
-                    try {
-                        const data = JSON.parse(jsonStr);
-                        const parts = data.candidates?.[0]?.content?.parts ?? [];
-                        for (const part of parts) {
-                            if (part.thought) continue; // thinking models: skip reasoning tokens
-                            if (part.text) onChunk(part.text);
-                        }
-                        if (data.usageMetadata) {
-                            lastUsageMeta = data.usageMetadata;
-                            if (typeof onUsage === "function") {
-                                onUsage(lastUsageMeta);
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            const parts = data.candidates?.[0]?.content?.parts ?? [];
+                            for (const part of parts) {
+                                if (part.thought) continue; // thinking models: skip reasoning tokens
+                                if (part.text) onChunk(part.text);
                             }
+                            if (data.usageMetadata) {
+                                lastUsageMeta = data.usageMetadata;
+                                if (typeof onUsage === "function") {
+                                    onUsage(lastUsageMeta);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("Error parsing stream JSON", e);
                         }
-                    } catch (e) {
-                        console.warn("Error parsing stream JSON", e);
                     }
                 }
             }
+        } finally {
+            try { reader.releaseLock(); } catch (_e) {}
         }
-    } finally {
-        try { reader.releaseLock(); } catch (_e) {}
-    }
 
-    return {
-        inputTokens:  lastUsageMeta?.promptTokenCount           ?? 0,
-        outputTokens: lastUsageMeta?.candidatesTokenCount        ?? 0,
-        cacheTokens:  lastUsageMeta?.cachedContentTokenCount     ?? 0,
-    };
+        return {
+            inputTokens:  lastUsageMeta?.promptTokenCount           ?? 0,
+            outputTokens: lastUsageMeta?.candidatesTokenCount        ?? 0,
+            cacheTokens:  lastUsageMeta?.cachedContentTokenCount     ?? 0,
+        };
+    } finally {
+        clearTimeout(idleTimeoutId);
+    }
 }
 
 // Export per a entorn Node.js (tests unitaris). Ignorat al navegador.

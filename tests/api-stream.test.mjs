@@ -205,3 +205,60 @@ test("callGeminiStream - múltiples parts en un sol chunk criden onChunk per cad
     await callGeminiStream(DUMMY_KEY, DUMMY_MODEL, "", "", ABORT, t => chunks.push(t), null);
     assert.deepEqual(chunks, ["un", "dos", "tres"]);
 });
+
+// ---------------------------------------------------------------------------
+// Regressió: el timeout d'inactivitat ha de cobrir el COS de l'streaming, no
+// només l'espera de les capçaleres HTTP. Abans, un cop `fetch()` resolia, el
+// timeout es netejava per sempre — un stream que rebia el primer chunk i
+// després s'encallava (connexió oberta, servidor que deixa d'enviar dades)
+// no s'avortava mai.
+// ---------------------------------------------------------------------------
+
+test("callGeminiStream - un stream que s'encalla a mig camí s'avorta pel timeout d'inactivitat", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    let capturedSignal = null;
+    const stream = new ReadableStream({
+        start(controller) {
+            controller.enqueue(new TextEncoder().encode(dataLine({
+                candidates: [{ content: { parts: [{ text: "primer" }] } }]
+            })));
+        },
+        pull() {
+            // Servidor que deixa de respondre: la propera lectura només es
+            // resol (rebutjada) si el signal (que inclou el timeout
+            // d'inactivitat) s'avorta.
+            return new Promise((_resolve, reject) => {
+                if (!capturedSignal) return;
+                const onAbort = () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+                if (capturedSignal.aborted) { onAbort(); return; }
+                capturedSignal.addEventListener("abort", onAbort, { once: true });
+            });
+        }
+    });
+
+    global.fetch = async (_url, opts) => {
+        capturedSignal = opts.signal;
+        return {
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            headers: { get: (h) => h.toLowerCase() === "content-type" ? "text/event-stream" : null },
+            body: stream,
+        };
+    };
+
+    const chunks = [];
+    const resultPromise = callGeminiStream(DUMMY_KEY, DUMMY_MODEL, "", "", ABORT, c => chunks.push(c), null);
+
+    // Deixa que tota la cadena de microtasks (fetch, primera lectura, parseig,
+    // segona lectura que queda pendent a pull()) es resolgui abans d'avançar
+    // el rellotge fals. setImmediate és un macrotask real, no afectat pel
+    // mock de setTimeout.
+    await new Promise(r => setImmediate(r));
+
+    t.mock.timers.tick(60_001); // supera el timeout d'inactivitat
+
+    await assert.rejects(resultPromise, /aborted|AbortError/i);
+    assert.deepEqual(chunks, ["primer"], "El primer chunk s'ha d'haver processat abans d'encallar-se");
+});
