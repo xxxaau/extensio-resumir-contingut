@@ -350,66 +350,84 @@ function buildAnkiRegenPrompt(basePrompt, lang, count, existingQuestions, focusT
  * @param {Object} ctx - Context del panell (contentDiv, errorDiv, getGlobalConfig)
  * @param {string} focusText - Text d'afinament optatiu
  */
+// Guard de re-entrada: renderAnkiPanel recrea moreBtn/focusBtn a cada render
+// (p.ex. si l'usuari marca una targeta mentre s'està generant), així que
+// deshabilitar-los sols no aguantaria un doble clic — cal un flag de mòdul
+// que persisteixi independentment de qualsevol re-render del DOM.
+let ankiGenerateInFlight = false;
+
 async function generateMoreAnkiCards(ctx, focusText) {
-    // Obtenim el text original de la pàgina (injectat per la pipeline, Task 5)
-    const rawPageText = (typeof window !== "undefined" && window.__ankiPageText) || "";
-    if (!rawPageText) return;
-
-    // Indicador "treballant": puntets animats als controls (visibles on clica l'usuari).
-    const loadingDiv = (typeof document !== "undefined") ? document.getElementById("ankiLoading") : null;
-    if (loadingDiv) loadingDiv.classList.remove("hidden");
-    showAnkiNotice(null); // neteja avisos previs en començar
-    if (ctx.errorDiv) ctx.errorDiv.classList.add("hidden");
+    if (ankiGenerateInFlight) return;
+    ankiGenerateInFlight = true;
     try {
-        // Clau d'API (storage.local) i configuració del model (storage.sync)
-        const { apiKey } = await ext.storage.local.get(["apiKey"]);
-        const cfg = await ext.storage.sync.get(["modelName", "ankiPrompt", "ankiLang", "ankiPacket"]);
-        const modelName = cfg.modelName || DEFAULT_MODEL_ID;
-        const base = cfg.ankiPrompt || DEFAULT_ANKI_PROMPT;
-        const lang = cfg.ankiLang || DEFAULT_ANKI_LANG;
-        const count = cfg.ankiPacket || DEFAULT_ANKI_PACKET;
+        // Obtenim el text original de la pàgina (injectat per la pipeline, Task 5)
+        const rawPageText = (typeof window !== "undefined" && window.__ankiPageText) || "";
+        if (!rawPageText) return;
 
-        // Amb un focus (Afinar) NO excloem les existents: volem que el model pugui
-        // aprofundir o reformular sobre el tema. Sense focus ("Generar més") sí que
-        // les excloem per evitar duplicats.
-        const existing = focusText ? [] : getAnkiCards().map(c => c.q);
-        const prompt = buildAnkiRegenPrompt(base, lang, count, existing, focusText);
-
-        // Apliquem la mateixa neutralització + embolcall UNTRUSTED que la pipeline principal
-        // (mirrors sidebar/summary.js:267-268) per mantenir la frontera anti-injecció de prompts.
-        const safePageText = rawPageText.replace(/<\s*\/?\s*UNTRUSTED[_\s-]*CONTENT\s*>/gi, "[FILTERED]");
-        const pageText = `<UNTRUSTED_CONTENT>\n${safePageText}\n</UNTRUSTED_CONTENT>`;
-
-        // Acumulem la resposta en streaming
-        let raw = "";
+        // Indicador "treballant": puntets animats als controls (visibles on clica l'usuari).
+        const loadingDiv = (typeof document !== "undefined") ? document.getElementById("ankiLoading") : null;
+        if (loadingDiv) loadingDiv.classList.remove("hidden");
+        showAnkiNotice(null); // neteja avisos previs en començar
+        if (ctx.errorDiv) ctx.errorDiv.classList.add("hidden");
         try {
-            await callGeminiStream(apiKey, modelName, prompt, pageText, undefined,
-                (chunk) => { raw += chunk; }, () => {});
-        } catch (e) {
-            if (ctx.errorDiv) {
-                ctx.errorDiv.textContent = "Error generant més targetes: " + e.message;
-                ctx.errorDiv.classList.remove("hidden");
-            }
-            return;
-        }
+            // Clau d'API (storage.local) i configuració del model (storage.sync)
+            const { apiKey } = await ext.storage.local.get(["apiKey"]);
+            const cfg = await ext.storage.sync.get(["modelName", "ankiPrompt", "ankiLang", "ankiPacket"]);
+            const modelName = cfg.modelName || DEFAULT_MODEL_ID;
+            const base = cfg.ankiPrompt || DEFAULT_ANKI_PROMPT;
+            const lang = cfg.ankiLang || DEFAULT_ANKI_LANG;
+            const count = cfg.ankiPacket || DEFAULT_ANKI_PACKET;
 
-        // Parsejem i afegim les targetes noves
-        const NO_MORE_MSG = "No hi ha més punts nous per generar d'aquest contingut. Prova «Afinar» per centrar-te en un aspecte concret.";
-        const newCards = parseAnkiCards(raw);
-        if (newCards.length === 0) {
-            showAnkiNotice(NO_MORE_MSG);
-            return;
+            // Amb un focus (Afinar) NO excloem les existents: volem que el model pugui
+            // aprofundir o reformular sobre el tema. Sense focus ("Generar més") sí que
+            // les excloem per evitar duplicats.
+            const existing = focusText ? [] : getAnkiCards().map(c => c.q);
+            const prompt = buildAnkiRegenPrompt(base, lang, count, existing, focusText);
+
+            // Apliquem la mateixa neutralització + embolcall UNTRUSTED que la pipeline principal
+            // (mirrors sidebar/summary.js:267-268) per mantenir la frontera anti-injecció de prompts.
+            const safePageText = rawPageText.replace(/<\s*\/?\s*UNTRUSTED[_\s-]*CONTENT\s*>/gi, "[FILTERED]");
+            const pageText = `<UNTRUSTED_CONTENT>\n${safePageText}\n</UNTRUSTED_CONTENT>`;
+
+            // AbortController real (abans es passava `undefined`): sense
+            // signal, aquesta petició no tenia manera de cancel·lar-se ni
+            // compartia el guard de timeout combinat de sidebar/api.js de
+            // forma explícita per part del cridant.
+            const abortController = new AbortController();
+
+            // Acumulem la resposta en streaming
+            let raw = "";
+            try {
+                await callGeminiStream(apiKey, modelName, prompt, pageText, abortController.signal,
+                    (chunk) => { raw += chunk; }, () => {});
+            } catch (e) {
+                if (ctx.errorDiv) {
+                    ctx.errorDiv.textContent = "Error generant més targetes: " + e.message;
+                    ctx.errorDiv.classList.remove("hidden");
+                }
+                return;
+            }
+
+            // Parsejem i afegim les targetes noves
+            const NO_MORE_MSG = "No hi ha més punts nous per generar d'aquest contingut. Prova «Afinar» per centrar-te en un aspecte concret.";
+            const newCards = parseAnkiCards(raw);
+            if (newCards.length === 0) {
+                showAnkiNotice(NO_MORE_MSG);
+                return;
+            }
+            const before = getAnkiCards().length;
+            appendAnkiCards(newCards);
+            const added = getAnkiCards().length - before;
+            if (added === 0) {
+                showAnkiNotice(NO_MORE_MSG);
+                return;
+            }
+            renderAnkiPanel(ctx);
+        } finally {
+            if (loadingDiv) loadingDiv.classList.add("hidden");
         }
-        const before = getAnkiCards().length;
-        appendAnkiCards(newCards);
-        const added = getAnkiCards().length - before;
-        if (added === 0) {
-            showAnkiNotice(NO_MORE_MSG);
-            return;
-        }
-        renderAnkiPanel(ctx);
     } finally {
-        if (loadingDiv) loadingDiv.classList.add("hidden");
+        ankiGenerateInFlight = false;
     }
 }
 

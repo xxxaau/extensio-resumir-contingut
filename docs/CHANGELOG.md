@@ -30,6 +30,23 @@ i el projecte segueix el [Versionatge Semàntic](https://semver.org/spec/v2.0.0.
   renderitzava un mapa conceptual (nova generació, cache o historial)
   s'afegien listeners de pan/zoom a `window` que mai es netejaven; en
   sessions llargues amb molts mapes s'acumulaven indefinidament.
+- **Avortar durant la cerca del contingut de la pàgina ara avisa.** Abans
+  tornava en silenci sense cap missatge; ara mostra "Generació aturada per
+  l'usuari" com a la resta de camins d'aturada.
+- **Ordre del desplegable de models.** El model per defecte surt sempre
+  primer, independentment de si n'hi ha un de més nou a la llista.
+- **Desmarcar el model per defecte dels favorits ara es respecta.** Abans es
+  tornava a afegir sol a cada càrrega del sidebar.
+- **Fallback de models amb context més petit.** Si la generació passa a un
+  model de reserva amb una finestra de context més petita, el text ara es
+  retalla per a aquell model en lloc de reutilitzar el retall fet per al
+  model preferit (podia provocar un error no reintentable i tallar tota la
+  cadena de reserva).
+- **Historial de resums buit en instal·lacions sense l'índex de cache
+  creat.** Es reconstrueix correctament enumerant les entrades existents.
+- **«Genera més»/«Afinar» de les targetes Anki amb doble clic.** Una segona
+  petició mentre la primera encara s'estava generant podia duplicar o
+  entrellaçar targetes; ara s'ignora fins que la primera acaba.
 
 ### Canviat
 - **Catàleg de models de Gemini actualitzat** (2026-08-09): preus i

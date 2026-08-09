@@ -378,3 +378,39 @@ test("anki - Generar més (sense focus) SÍ exclou les existents", async () => {
 
     assert.ok(captured && captured.includes("EXISTENT?"), "sense focus ha d'excloure les existents");
 });
+
+// ---------------------------------------------------------------------------
+// Regressió: guard de re-entrada. Un doble clic a "Genera més"/"Afinar"
+// mentre la primera petició encara està en curs no ha de disparar una
+// segona crida concurrent (podia duplicar/entrellaçar targetes i botons
+// que es recreen a cada render podien perdre l'estat "disabled").
+// ---------------------------------------------------------------------------
+
+test("anki - generateMoreAnkiCards: una crida concurrent mentre la primera és en curs s'ignora", async () => {
+    resetStorage();
+    await syncMock.set({ modelName: "gemini-2.0-flash", ankiLang: "ca", ankiPacket: 5 });
+    await localMock.set({ apiKey: "AIza_test_key" });
+
+    let callCount = 0;
+    let resolveFirst;
+    const firstCallGate = new Promise(r => { resolveFirst = r; });
+    setupGlobals({
+        callGeminiStream: async (_k, _m, _p, _t, _s, onChunk) => {
+            callCount++;
+            await firstCallGate; // manté la primera crida "en curs" fins que el test la desbloqueja
+            onChunk('[{"q":"NOVA?","a":"R"}]');
+            return { inputTokens: 1, outputTokens: 1, cacheTokens: 0 };
+        },
+    });
+    global.window = { __ankiPageText: "Contingut de prova." };
+    global.setAnkiCards([]);
+    const ctx = { contentDiv: makeEl(), errorDiv: makeEl(), getGlobalConfig: () => ({}) };
+
+    const p1 = global.generateMoreAnkiCards(ctx, "");
+    const p2 = global.generateMoreAnkiCards(ctx, ""); // concurrent, s'ha d'ignorar
+    resolveFirst();
+    await Promise.all([p1, p2]);
+
+    assert.equal(callCount, 1,
+        "callGeminiStream NOMÉS s'ha de cridar un cop; la crida concurrent s'ha d'ignorar");
+});

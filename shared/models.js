@@ -62,6 +62,7 @@ const DEFAULT_MODEL_INFO = {
 
 /**
  * Ordena un array de models per prioritat:
+ *   0. DEFAULT_MODEL_ID (sempre primer, tingui la versió que tingui)
  *   1. Flash Lite (no preview)
  *   2. Flash (no preview)
  *   3. Gemma
@@ -77,6 +78,10 @@ function sortModelsByPriority(models) {
     function key(m) {
         const obj = typeof m === "string" ? null : m;
         const id = (obj ? obj.id : m) || "";
+        // El model per defecte sempre va primer: "newest first" per versió i
+        // "default first" per UX poden discrepar (el default es tria per preu/
+        // fiabilitat, no per ser el més nou).
+        if (id === DEFAULT_MODEL_ID) return "0";
         const lower = id.toLowerCase();
         const isPreview = lower.includes("preview");
         let group;
@@ -107,31 +112,25 @@ function sortModelsByPriority(models) {
 
 /**
  * Assegura que favoriteModels existeix a storage.sync.
- * Si no existeix (primer ús), l'inicialitza amb els models curats.
- * Si ja existeix, assegura que sempre inclou el model per defecte (Gemini 3 Flash).
+ * Si no existeix (primer ús), l'inicialitza amb el model per defecte.
+ * Si ja existeix (encara que l'usuari n'hagi tret el model per defecte
+ * explícitament), es respecta tal qual — no es torna a forçar la seva inclusió.
  * Retorna l'array de IDs favorits.
  */
 async function ensureFavoriteModels() {
     const data = await ext.storage.sync.get({ favoriteModels: null });
     let favorites = data.favoriteModels;
-    
+
     // Primer ús: inicialitzar amb el model per defecte
     if (!favorites) {
         favorites = [DEFAULT_MODEL_ID];
         await ext.storage.sync.set({ favoriteModels: favorites });
-        return favorites;
     }
-    
-    // Migració: assegurar que sempre inclou el model per defecte
-    if (!favorites.includes(DEFAULT_MODEL_ID)) {
-        favorites = [DEFAULT_MODEL_ID, ...favorites];
-        await ext.storage.sync.set({ favoriteModels: favorites });
-    }
-    
+
     return favorites;
 }
 
 // Export per a entorn Node.js (tests unitaris). Ignorat al navegador.
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = { CURATED_MODELS, DEFAULT_MODEL_ID, DEFAULT_MODEL_INFO, EUR_RATE, sortModelsByPriority };
+    module.exports = { CURATED_MODELS, DEFAULT_MODEL_ID, DEFAULT_MODEL_INFO, EUR_RATE, sortModelsByPriority, ensureFavoriteModels };
 }

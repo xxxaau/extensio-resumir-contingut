@@ -31,13 +31,22 @@ function _keyToType(key) {
 }
 
 async function getSummaryCacheIndex() {
-    const data = await ext.storage.local.get({ [SUMMARY_CACHE_INDEX_KEY]: [] });
+    // NOTA: `get({[KEY]: []})` (amb valor per defecte) retornaria `[]` tant si
+    // la clau no existeix com si existeix i és un array buit — indistingibles.
+    // Cal `get(KEY)` sense defecte per detectar de veritat "la clau no hi és"
+    // i no saltar-nos mai el rebuild quan hi ha entrades `summary_cache:*`
+    // orfes (índex encara no creat, o esborrat per algun motiu).
+    const data = await ext.storage.local.get(SUMMARY_CACHE_INDEX_KEY);
     if (Array.isArray(data[SUMMARY_CACHE_INDEX_KEY])) {
         return data[SUMMARY_CACHE_INDEX_KEY];
     }
     try {
         const allData = await ext.storage.local.get(null);
-        return Object.keys(allData).filter(key => key.startsWith("summary_cache:"));
+        const rebuilt = Object.keys(allData).filter(key => key.startsWith("summary_cache:"));
+        // Escriu l'índex reconstruït perquè les properes crides no hagin de
+        // tornar a enumerar tot storage.local.
+        await ext.storage.local.set({ [SUMMARY_CACHE_INDEX_KEY]: rebuilt });
+        return rebuilt;
     } catch (fallbackError) {
         console.warn("Cache index missing and full storage enumeration failed:", fallbackError);
         return [];

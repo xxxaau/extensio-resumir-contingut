@@ -27,40 +27,49 @@ fuita de listeners del mapa conceptual). **Fets amb tests de regressió
   que no estan disponibles per a targetes reobertes des de l'Historial (no
   hi ha el text original de la pàgina fora d'una sessió de generació activa).
 
-**Queden pendents, ordenats per severitat:**
+**Fets amb tests de regressió (2026-08-09, segona tanda):**
 
-- [ ] **`sortModelsByPriority` ordena malament els Flash Lite** (`shared/models.js`).
-  Exposat pels models nous d'avui: `gemini-3.5-flash-lite` surt abans que
-  `gemini-3.1-flash-lite` (el per-defecte) al desplegable per un problema de
-  comparació de versions al sort.
+- [x] **Abort entre models del bucle de fallback** (`summary.js`). Guard
+  defensiu afegit (inabastable avui amb el codi actual, però es manté per si
+  un futur canvi hi introdueix un `await`). De pas, 2 retorns silenciosos
+  reals en avortar durant el fetch de contingut (`if (signal.aborted) return`
+  sense missatge) ara mostren "Generació aturada per l'usuari."
+- [x] **`sortModelsByPriority` ordena malament els Flash Lite** (`shared/models.js`).
+  Decisió (confirmada amb l'usuari): el `DEFAULT_MODEL_ID` sempre surt primer
+  al desplegable, independentment de versió.
+- [x] **`ensureFavoriteModels` torna a afegir el model per defecte a cada
+  càrrega** (`shared/models.js`). Decisió (confirmada amb l'usuari): ja no es
+  torna a forçar — si l'usuari el desmarca explícitament, es respecta.
+- [x] **Truncament de tokens no es recalcula en canviar de model al fallback**
+  (`summary.js`). El truncament ara es recalcula per a CADA model provat
+  (`truncateForModel`), no un sol cop per al model preferit.
+- [x] **Rebuild de l'índex de cache no s'activava si la clau simplement no
+  existia** (`sidebar/cache.js`). `get(KEY)` sense valor per defecte + l'índex
+  reconstruït es torna a escriure a storage.
+- [x] **`summarize-selection` sense text: rebuig de promesa no gestionat**
+  (`background.js`). `.catch()` adjuntat a `ext.sidebar.open()` en el moment
+  de crear la promesa, no on s'espera més tard.
+- [x] **"Genera més"/"Afinar" d'Anki sense guard de re-entrada**
+  (`sidebar/anki.js`). Flag de mòdul (`ankiGenerateInFlight`) + `AbortController`
+  real en lloc de `undefined`.
+
+**Queda pendent:**
+
 - [ ] **Timeout de 60s no cobreix el cos de l'streaming** (`sidebar/api.js:79-96`),
-  només l'espera de capçaleres HTTP. S'agreuja amb el bug de l'abort.
-- [ ] **Truncament de tokens no es recalcula en canviar de model al fallback**
-  (`summary.js:281`). Si el fallback passa a un model amb context més petit,
-  el prompt (ja truncat per al model anterior) pot seguir sent massa gran →
-  HTTP 400 no reintentable, trenca tota la cadena de fallback.
-- [ ] **Avortar enmig del bucle de reintents guarda un resum buit** (`summary.js:318`),
-  sense avisar l'usuari (ara emmascarat pel bug de l'abort de dalt).
-- [ ] **Rebuild de l'índex de cache no s'activa si la clau simplement no existeix**
-  (`sidebar/cache.js:33-45`) — només si existeix amb forma invàlida. Forats
-  d'historial silenciosos en instal·lacions afectades.
-- [ ] **`summarize-selection` sense text: rebuig de promesa no gestionat**
-  (`background.js:67-69`), no espera ni captura `openPromise` abans de `return`.
-- [ ] **"Genera més"/"Afinar" d'Anki sense guard de re-entrada** (`sidebar/anki.js`):
-  no bloquegen botons ni passen `AbortSignal`; doble clic pot duplicar/entrellaçar
-  targetes.
-- [ ] **`ensureFavoriteModels` torna a afegir el model per defecte a cada
-  càrrega** (`shared/models.js`) encara que l'usuari l'hagi desmarcat
-  explícitament — a confirmar si és intencionat (el comentari del codi ho
-  suggereix) o cal permetre desmarcar-lo de veritat.
+  només l'espera de capçaleres HTTP. Requereix un timer d'inactivitat que es
+  reiniciï a cada chunk, no un deadline únic — més difícil de testejar
+  (`t.mock.timers` o timeout injectable).
 
 **Menor / codi mort (no urgent):** `ext.sidebar.close()` sense cap crida
 enlloc; icones sense ús a `shared/icons.js`; arbre `<details>` de fallback a
-`conceptmap.js` pràcticament inabastable; `closest()` sobre un resultat
-potencialment `null` a `options/settings-order.js:63-64`; tancament
-`</UNTRUSTED_CONTENT>` que es pot truncar en resums molt llargs
-(`summary.js:284-287`); `getDailyStats`/`rpd` (quota diària per model) estan
-implementats i testejats però no s'usen enlloc a producció.
+`conceptmap.js` pràcticament inabastable (defensiu, es manté); `closest()`
+sobre un resultat potencialment `null` a `options/settings-order.js:63-64`;
+`ext` com a nom de variable de loop ombreja l'API global a
+`options/settings-sidebar.js:96`; tancament `</UNTRUSTED_CONTENT>` que es pot
+truncar en resums molt llargs; flush final del `TextDecoder` no fet a
+`sidebar/api.js`; `getDailyStats`/`rpd` (quota diària per model) estan
+implementats i testejats però no s'usen enlloc a producció (feature
+incompleta, no bug).
 
 **Criteris d'acceptació:** cada ítem es tanca amb un fix + test de
 regressió, sense trencar els 275 tests existents.

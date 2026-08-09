@@ -155,7 +155,11 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
             throw new Error("[001] No s'ha configurat la API Key. Ves a la pàgina d'opcions de l'extensió.");
         }
 
-        if (signal.aborted) return abortController;
+        if (signal.aborted) {
+            errorDiv.textContent = "Generació aturada per l'usuari.";
+            errorDiv.classList.remove("hidden");
+            return abortController;
+        }
 
         // 2. Get Page Text & Check Cache
         let pageData = null;
@@ -278,17 +282,28 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
         // Desa el text brut per a la regeneració Anki (Task 6). Guard per a tests Node.
         if (typeof window !== "undefined") window.__ankiPageText = pageData.text;
 
-        if (signal.aborted) return abortController;
+        if (signal.aborted) {
+            errorDiv.textContent = "Generació aturada per l'usuari.";
+            errorDiv.classList.remove("hidden");
+            return abortController;
+        }
 
-        // Token Limit handling — usar contextWindow del model triat (deixant 20% de marge)
-        // Nota: s'usa CURATED_MODELS.find() directament per evitar dep. creuada amb api.js en tests.
+        // Token Limit handling — recalculat PER MODEL dins del bucle de sota
+        // (truncateForModel), no un sol cop per al model preferit: si el
+        // fallback canvia a un model amb un context window més petit, un
+        // prompt truncat només per al primer podia seguir sent massa gran →
+        // HTTP 400 no reintentable, que trencava tota la cadena de fallback.
+        // Nota: s'usa CURATED_MODELS.find() directament (no getCuratedModelInfo)
+        // per evitar dep. creuada amb api.js en tests.
         // El ratio chars/token canvia de 3.5 (original) a 4 per aproximació més precisa per Gemini.
-        const modelEntry = CURATED_MODELS.find(m => m.id === modelName);
-        const safeLimit = Math.floor(((modelEntry && modelEntry.contextWindow) || 200_000) * 0.8);
-        const estimatedTokens = estimateTokens(pageText);
-        if (estimatedTokens > safeLimit) {
-            const charLimit = safeLimit * 4; // ~4 chars/token (abans era 3.5 — intencionadament canviat)
-            pageText = pageText.substring(0, charLimit) + "\n\n[... Text truncated due to model limits ...]";
+        function truncateForModel(text, modelId) {
+            const modelEntry = CURATED_MODELS.find(m => m.id === modelId);
+            const safeLimit = Math.floor(((modelEntry && modelEntry.contextWindow) || 200_000) * 0.8);
+            if (estimateTokens(text) > safeLimit) {
+                const charLimit = safeLimit * 4; // ~4 chars/token (abans era 3.5 — intencionadament canviat)
+                return text.substring(0, charLimit) + "\n\n[... Text truncated due to model limits ...]";
+            }
+            return text;
         }
 
         // 3. Call Gemini API (with Auto-Fallback on Quota Exceeded)
@@ -310,7 +325,10 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
         // quedaven de la vegada anterior, per això el bug només es veia el 1r cop).
         applyBionicStyles(contentDiv, bionicEnabled, config);
         let apiUsage = null;
-        const liveInputTokens = estimateTokens(pageText);
+        // Estimació inicial per a la UI amb el model preferit; el prompt
+        // real enviat a cada intent es recalcula per model dins del bucle.
+        let lastPromptText = truncateForModel(pageText, modelName);
+        const liveInputTokens = estimateTokens(lastPromptText);
         let liveOutputTokens = 0;
         let lastTokenUiUpdate = 0;
 
@@ -325,7 +343,8 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
                 currentMetadata.summary = pageData.noTranscript ? "Vídeo sense transcripció.\n\n" : ""; // Reset output text
                 liveOutputTokens = 0;
                 const loadingDiv = document.getElementById("loading");
-                apiUsage = await callGeminiStream(apiKey, tryModel, systemPrompt, pageText, signal, (chunkText) => {
+                lastPromptText = truncateForModel(pageText, tryModel);
+                apiUsage = await callGeminiStream(apiKey, tryModel, systemPrompt, lastPromptText, signal, (chunkText) => {
                     // Amagar els puntets en el primer chunk rebut
                     if (loadingDiv && !loadingDiv.classList.contains("hidden")) {
                         loadingDiv.classList.add("hidden");
@@ -394,10 +413,21 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
             }
         }
 
-        if (!success && lastError && !signal.aborted) {
+        // Guard defensiu: avui inabastable perquè el check de la línia de dalt
+        // (abans del bucle) ja intercepta l'abort sense cap await pel mig, i
+        // un abort DINS d'un intent ja el rellança el catch de sota. Es manté
+        // per si un futur canvi introdueix un await entre iteracions del bucle
+        // — sense això, cauria en un render+cache d'un resum buit en silenci.
+        if (signal.aborted) {
+            errorDiv.textContent = "Generació aturada per l'usuari.";
+            errorDiv.classList.remove("hidden");
+            return abortController;
+        }
+
+        if (!success && lastError) {
             throw new Error("[003] Tots els models disponibles han fallat (manca de quota). Si us plau, proveu-ho més tard.");
         }
-        
+
         // Sense targetes vàlides, no hi ha res útil a mostrar ni a cachejar
         // (cachejar-ho igualment deixava una entrada d'Historial permanentment
         // trencada, sense manera de tornar-la a generar des d'allà).
@@ -426,7 +456,7 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
         // 4. Update Stats & Cache
         // apiUsage is null if the stream failed mid-flight or the API returned no usageMetadata.
         // Fall back to character-based estimates in those cases.
-        const inputTokens  = apiUsage?.inputTokens  ?? pageText.length / 4;
+        const inputTokens  = apiUsage?.inputTokens  ?? lastPromptText.length / 4;
         const outputTokens = apiUsage?.outputTokens ?? currentMetadata.summary.length / 4;
         const cacheTokens  = apiUsage?.cacheTokens  ?? 0;
 

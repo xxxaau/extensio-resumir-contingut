@@ -83,6 +83,26 @@ test("listCachedSummaries - retorna array buit (no llanca) si storage falla", as
     global.ext = { storage: { local: storageMock } };
 });
 
+test("listCachedSummaries - reconstrueix l'índex si la clau no existeix (entrades orfes)", async () => {
+    clearStorage();
+    // Cap "summary_cache_index" desat, però hi ha una entrada de cache real —
+    // simula una instal·lació sense índex encara (o esborrat per algun motiu).
+    await storageMock.set({
+        "summary_cache:https://orfe.com:summary": makeEntry({ url: "https://orfe.com" }),
+    });
+
+    const result = await listCachedSummaries();
+    assert.equal(result.length, 1, "Ha de trobar l'entrada orfe via l'enumeració de fallback");
+    assert.equal(result[0].url, "https://orfe.com");
+
+    // L'índex reconstruït s'ha d'haver escrit, perquè la propera crida no
+    // hagi de tornar a enumerar tot storage.local.
+    const dump = await storageMock.get("summary_cache_index");
+    assert.ok(Array.isArray(dump.summary_cache_index),
+        "L'índex reconstruït s'ha d'haver desat a storage");
+    assert.ok(dump.summary_cache_index.includes("summary_cache:https://orfe.com:summary"));
+});
+
 test("listCachedSummaries - retorna el tipus correcte per cada entrada", async () => {
     clearStorage();
     await storageMock.set({

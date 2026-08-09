@@ -63,7 +63,12 @@ ext.runtime.onInstalled.addListener(async (_details) => {
 ext.menus.onClicked.addListener(async (info, tab) => {
   // 1. Open Sidebar IMMEDIATELY to preserve user gesture token
   // Awaiting anything before calling open() invalidates the token in Chrome.
-  const openPromise = ext.sidebar.open(tab.windowId);
+  // .catch() attached HERE, a la creació: la branca "summarize-selection" pot
+  // fer `return` abans d'arribar mai a l'`await openPromise` de sota (quan no
+  // hi ha text seleccionat), cosa que deixaria un rebuig de promesa no
+  // gestionat si ext.sidebar.open() fallés.
+  const openPromise = ext.sidebar.open(tab.windowId)
+      .catch(err => console.error("[sidebar] open error:", err));
 
   if (info.menuItemId === "summarize-selection") {
       const text = info.selectionText;

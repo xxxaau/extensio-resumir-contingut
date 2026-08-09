@@ -182,6 +182,36 @@ test("background: menú summarize-selection sense text obre sidebar però no des
 });
 
 // ---------------------------------------------------------------------------
+// Regressió: si ext.sidebar.open() falla i no hi ha text seleccionat, el
+// handler fa `return` abans d'arribar mai a l'`await openPromise` de sota —
+// sense un .catch() adjuntat a la creació, això deixava un rebuig de
+// promesa no gestionat.
+// ---------------------------------------------------------------------------
+
+test("background: summarize-selection sense text no deixa cap rebuig no gestionat si sidebar.open falla", async () => {
+    resetCalls();
+    let unhandled = null;
+    const onUnhandled = (reason) => { unhandled = reason; };
+    process.on("unhandledRejection", onUnhandled);
+
+    const originalOpen = global.ext.sidebar.open;
+    global.ext.sidebar.open = async () => { throw new Error("open failed"); };
+    try {
+        await listeners.menusClicked(
+            { menuItemId: "summarize-selection", selectionText: "" },
+            { windowId: 1 }
+        );
+        // Un tick perquè un rebuig no gestionat es dispari si n'hi hagués.
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(unhandled, null,
+            `No hi hauria d'haver cap rebuig de promesa no gestionat, hi ha: ${unhandled}`);
+    } finally {
+        global.ext.sidebar.open = originalOpen;
+        process.off("unhandledRejection", onUnhandled);
+    }
+});
+
+// ---------------------------------------------------------------------------
 // menus.onClicked → summarize-page
 // ---------------------------------------------------------------------------
 

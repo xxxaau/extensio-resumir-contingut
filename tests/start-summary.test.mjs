@@ -285,6 +285,37 @@ test("startSummary - crida ctx.setAbortController síncronament, abans de qualse
 });
 
 // ---------------------------------------------------------------------------
+// Regressió: avortar durant el fetch del contingut de la pàgina (abans que
+// comenci la crida al model) ara mostra "Generació aturada", en lloc de
+// tornar en silenci sense cap missatge (inconsistent amb l'abort dins d'un
+// stream actiu, que sí que l'ha mostrat sempre). Només reproduïble des que
+// ctx.setAbortController permet capturar l'AbortController real.
+// ---------------------------------------------------------------------------
+
+test("startSummary - avortar durant el fetch de contingut mostra 'aturada' (no torna en silenci)", async () => {
+    resetStorage();
+    await syncMock.set({ modelName: "gemini-2.0-flash" });
+    await localMock.set({ apiKey: "AIza_test_key" });
+
+    let capturedController = null;
+    setupGlobals({
+        getPageContent: async () => {
+            capturedController.abort();
+            return { title: "Test", url: "https://example.com", text: "text" };
+        },
+    });
+
+    const ctx = makeCtx({
+        setAbortController: (ctrl) => { capturedController = ctrl; },
+    });
+    await startSummary(ctx, null, false, false, true);
+
+    assert.ok(ctx.errorDiv.textContent.includes("aturada"),
+        `errorDiv ha de mostrar el missatge d'aturada, té: "${ctx.errorDiv.textContent}"`);
+    assert.ok(!ctx.errorDiv.classList.contains("hidden"), "errorDiv ha de ser visible");
+});
+
+// ---------------------------------------------------------------------------
 // Regressió: el preload d'un sol ús (PDF local) es neteja després de
 // consumir-se, perquè no contamini un resum posterior d'una altra pestanya
 // (bug: contentPreload no es reiniciava mai a sidebar.js).
@@ -377,6 +408,54 @@ test("startSummary - fallback de quota: prova el segon model si el primer falla 
     assert.ok(modelsTried.includes("gemini-2.5-flash"), "Ha de provar el segon model com a fallback");
     assert.ok(ctx.currentMetadata.summary.includes("Resum del segon model."),
         "El resum ha de ser del segon model");
+});
+
+// ---------------------------------------------------------------------------
+// Regressió: si el fallback canvia a un model amb un context window més
+// petit, el prompt s'ha de re-truncar per a AQUELL model (abans es truncava
+// un sol cop per al model preferit i es reutilitzava tal qual, podent
+// disparar un HTTP 400 no reintentable per al fallback i trencar tota la
+// cadena de reintents).
+// ---------------------------------------------------------------------------
+
+test("startSummary - retrunca el prompt per model quan el fallback té un context window més petit", async () => {
+    resetStorage();
+    await syncMock.set({ modelName: "gemini-context-gran" });
+    await localMock.set({ apiKey: "AIza_test_key" });
+
+    const longText = "Paràgraf de contingut de prova. ".repeat(200); // ~6600 chars
+    const promptsSent = {};
+    setupGlobals({
+        getSummaryCache: async () => null,
+        saveSummaryCache: async () => true,
+        saveUsageStats: async () => ({}),
+        getPageContent: async () => ({
+            title: "Test Page",
+            url: "https://example.com",
+            text: longText,
+        }),
+        CURATED_MODELS: [
+            { id: "gemini-context-gran",  fallback: true, contextWindow: 1_000_000 },
+            { id: "gemini-context-petit", fallback: true, contextWindow: 1_000 },
+        ],
+        callGeminiStream: async (_k, model, _p, text) => {
+            promptsSent[model] = text;
+            if (model === "gemini-context-gran") {
+                const err = new Error("Quota exceeded");
+                err.status = 429;
+                throw err;
+            }
+            return { inputTokens: 10, outputTokens: 5, cacheTokens: 0 };
+        },
+    });
+
+    const ctx = makeCtx();
+    await startSummary(ctx, null, false, false, true);
+
+    assert.ok(!promptsSent["gemini-context-gran"].includes("Text truncated"),
+        "El model amb context gran NO ha de rebre el prompt truncat");
+    assert.ok(promptsSent["gemini-context-petit"].includes("Text truncated"),
+        "El model amb context petit (fallback) SÍ ha de rebre el prompt retruncat per al seu límit");
 });
 
 // ---------------------------------------------------------------------------
