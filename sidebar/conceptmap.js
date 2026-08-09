@@ -203,7 +203,17 @@ function expandAll(container) {
 // sobreescriu window.buildConceptMapFilename i es crida a si mateixa
 // (recursió infinita en mode dev amb scripts separats).
 
+// Instància embeguda (sidebar) actualment viva. `contentDiv.replaceChildren(...)`
+// treu l'<svg> del DOM en re-renderitzar, però els listeners de `window` que
+// `createMindMap` hi afegeix (pan/zoom) no es netegen sols — cal cridar
+// `destroy()` explícitament abans de crear-ne una altra, o s'acumulen.
+let currentEmbeddedMindMap = null;
+
 function renderMarkmapInteractive(text, pageTitle = "", originUrl = "") {
+    if (currentEmbeddedMindMap) {
+        currentEmbeddedMindMap.destroy();
+        currentEmbeddedMindMap = null;
+    }
     const fragment = document.createDocumentFragment();
 
     if (!text || typeof text !== "string") {
@@ -288,6 +298,7 @@ function renderMarkmapInteractive(text, pageTitle = "", originUrl = "") {
             collapseFromLevel(root, 0, 1);
 
             const mm = window.markmapNative.createMindMap(svg, root, {});
+            currentEmbeddedMindMap = mm;
 
             zoomInBtn.addEventListener("click", () => mm.rescale(1.25));
             zoomOutBtn.addEventListener("click", () => mm.rescale(0.8));

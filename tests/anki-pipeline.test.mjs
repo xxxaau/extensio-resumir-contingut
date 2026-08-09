@@ -212,6 +212,37 @@ test("anki pipeline - contentType és 'anki'", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Regressió: si el model no retorna cap targeta vàlida, NO es cacheja el
+// resultat (abans es guardava igualment, deixant una entrada d'Historial
+// permanentment trencada i irrecuperable) i es mostra un error a l'usuari.
+// ---------------------------------------------------------------------------
+
+test("anki pipeline - sense targetes vàlides: NO cacheja i mostra error", async () => {
+    resetStorage();
+    await syncMock.set({ modelName: "gemini-2.0-flash", ankiLang: "ca" });
+    await localMock.set({ apiKey: "AIza_test_key" });
+
+    let cacheSaved = false;
+    setupGlobals({
+        getSummaryCache: async () => null,
+        saveSummaryCache: async () => { cacheSaved = true; return true; },
+        saveUsageStats: async () => ({}),
+        callGeminiStream: async (_k, _m, _p, _t, _s, onChunk, onUsage) => {
+            onChunk("Ho sento, no puc generar targetes d'això.");
+            onUsage({ promptTokenCount: 50, candidatesTokenCount: 20 });
+            return { inputTokens: 50, outputTokens: 20, cacheTokens: 0 };
+        },
+    });
+
+    const ctx = makeCtx();
+    await startSummary(ctx, null, false, false, true, false, false, true);
+
+    assert.ok(!cacheSaved, "saveSummaryCache NO s'ha de cridar sense targetes vàlides");
+    assert.ok(ctx.errorDiv.textContent.length > 0, "S'ha de mostrar un missatge d'error");
+    assert.ok(!ctx.errorDiv.classList.contains("hidden"), "errorDiv ha de ser visible");
+});
+
+// ---------------------------------------------------------------------------
 // Test 3: getAnkiCards() té 1 targeta amb q="P"
 // ---------------------------------------------------------------------------
 

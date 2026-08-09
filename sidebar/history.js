@@ -59,6 +59,7 @@ function closeHistoryPanel() {
 
 async function loadHistoryEntry(entry) {
     const contentDiv = document.getElementById("content");
+    const errorDiv = document.getElementById("error");
     const localData = await ext.storage.local.get({ isBionicActive: false });
     const bionicEnabled = localData.isBionicActive === true;
     let bionicConfig = {};
@@ -69,7 +70,9 @@ async function loadHistoryEntry(entry) {
         fixation = (syncData.bionicFixation || DEFAULT_BIONIC.fixation) / 100;
     }
     const CONCEPT_MAP_MARKER = "<!--conceptmap-->\n";
+    const ANKI_MARKER = "<!--anki-->\n";
     const isConceptMap = entry.summary.startsWith(CONCEPT_MAP_MARKER);
+    const isAnki = entry.summary.startsWith(ANKI_MARKER);
 
     if (isConceptMap) {
         const mapText = entry.summary.substring(CONCEPT_MAP_MARKER.length);
@@ -80,6 +83,28 @@ async function loadHistoryEntry(entry) {
         } else {
             contentDiv.replaceChildren(formatTextToFragment(mapText, bionicEnabled, fixation));
         }
+    } else if (isAnki) {
+        // Restaura el panell interactiu d'Anki des de la caché de l'Historial
+        // (abans es renderitzava el JSON cru com a text pla: faltava aquesta
+        // branca, tot i que summary.js ja hi guarda entrades d'aquest tipus).
+        const cardsText = entry.summary.substring(ANKI_MARKER.length);
+        const ankiConfig = await ext.storage.sync.get(["ankiVault", "obsidianVault", "ankiPath"]);
+        setAnkiCards(parseAnkiCards(cardsText));
+        renderAnkiPanel({
+            contentDiv,
+            errorDiv,
+            getGlobalConfig: () => ankiConfig,
+            // No tenim el text original de la pàgina fora d'una sessió de
+            // generació activa (window.__ankiPageText no es persisteix a la
+            // caché) — regenerar amb contingut equivocat seria pitjor que no
+            // oferir-ho, així que expliquem la limitació en lloc de generar.
+            onGenerateMore: () => {
+                if (errorDiv) {
+                    errorDiv.textContent = "«Genera més» i «Afinar» no estan disponibles per a targetes obertes des de l'Historial.";
+                    errorDiv.classList.remove("hidden");
+                }
+            },
+        });
     } else {
         contentDiv.replaceChildren(formatTextToFragment(entry.summary, bionicEnabled, fixation));
     }

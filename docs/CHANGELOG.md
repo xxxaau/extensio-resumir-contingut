@@ -5,6 +5,42 @@ Tots els canvis importants d'aquest projecte es documenten en aquest fitxer.
 El format està basat en [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 i el projecte segueix el [Versionatge Semàntic](https://semver.org/spec/v2.0.0.html).
 
+## [Sense publicar]
+
+### Arreglat
+- **El botó «Atura» ara atura de veritat.** L'`AbortController` no arribava
+  a la sidebar fins que la generació ja havia acabat, de manera que clicar
+  «atura» durant l'streaming no feia res i, en alguns casos, en llançava
+  una segona generació sobre el mateix resum.
+- **Un PDF local seleccionat ja no contamina resums posteriors.** El
+  contingut precarregat d'un PDF triat manualment es quedava «enganxat» i
+  podia reaparèixer en resumir una pestanya completament diferent.
+- **Les targetes Anki desades a l'Historial es poden tornar a obrir.**
+  Abans es renderitzava el JSON cru com a text pla en lloc del panell
+  interactiu. Si el model no retorna cap targeta vàlida, ara es mostra un
+  avís en lloc de desar una entrada d'Historial trencada.
+- **Missatge d'estat en «Actualitzar models».** El text d'èxit/error del
+  botó a Settings quedava permanentment invisible per un conflicte entre
+  `style.display` i la classe CSS `.hidden`; ara es mostra correctament.
+- **Ordre de la toolbar en instal·lacions antigues.** Un `extensionOrder`
+  desat abans que existís el plugin d'Anki no l'incloïa mai a la migració
+  automàtica, deixant el seu botó sempre a la posició per defecte del DOM
+  en lloc de l'ordre triat per l'usuari.
+- **Fuita de listeners al mapa conceptual del sidebar.** Cada cop que es
+  renderitzava un mapa conceptual (nova generació, cache o historial)
+  s'afegien listeners de pan/zoom a `window` que mai es netejaven; en
+  sessions llargues amb molts mapes s'acumulaven indefinidament.
+
+### Canviat
+- **Catàleg de models de Gemini actualitzat** (2026-08-09): preus i
+  disponibilitat sincronitzats amb la documentació oficial de Google
+  (ai.google.dev, actualitzada 2026-08-05). S'afegeixen `gemini-3.6-flash`,
+  `gemini-3.5-flash-lite` i `gemini-2.5-flash-lite`. Es corregeix el preu de
+  sortida de `gemini-2.5-pro` (era la meitat del real: $5,00 en lloc de
+  $10,00/1M tokens) i es reflecteix la pujada de preu de `gemini-3.5-flash`
+  ($0,30→$1,50 entrada, $2,50→$9,00 sortida). Taxa EUR/USD actualitzada a
+  Q3 2026 (0,87).
+
 ## [2.6.2] - 2026-07-27
 
 ### Arreglat

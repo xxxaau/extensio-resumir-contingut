@@ -153,7 +153,7 @@ async function refreshModels(e) {
 
     btn.textContent = "Actualitzant...";
     btn.disabled = true;
-    statusDiv.style.display = "none";
+    statusDiv.classList.add("hidden");
 
     try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models`, {
@@ -200,7 +200,7 @@ async function refreshModels(e) {
         }
         const removedCount = currentFavorites.length - cleanedFavorites.length;
 
-        statusDiv.style.display = "block";
+        statusDiv.classList.remove("hidden");
         statusDiv.style.color = "var(--success-color, #28a745)";
         statusDiv.textContent = `✓ ${mergedModels.length} models disponibles (${CURATED_MODELS.length} recomanats + ${apiModels.length} addicionals)`
             + (removedCount > 0 ? ` · ${removedCount} favorit${removedCount > 1 ? "s" : ""} eliminat${removedCount > 1 ? "s" : ""} per obsolets` : "");
@@ -221,7 +221,7 @@ async function refreshModels(e) {
         }
 
     } catch (err) {
-        statusDiv.style.display = "block";
+        statusDiv.classList.remove("hidden");
         statusDiv.style.color = "var(--error-color, #dc3545)";
         statusDiv.textContent = `✗ Error: ${err.message}`;
     } finally {

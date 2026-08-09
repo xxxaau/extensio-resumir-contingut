@@ -33,7 +33,8 @@ ext.sidebar.setPanelBehavior({ openPanelOnActionClick: true })
 ext.runtime.onInstalled.addListener(async (_details) => {
   // Chromium: open the side panel when the toolbar icon is clicked (native
   // open/close). Persisted across restarts; also re-applied at top-level above.
-  ext.sidebar.setPanelBehavior({ openPanelOnActionClick: true });
+  ext.sidebar.setPanelBehavior({ openPanelOnActionClick: true })
+    .catch(err => console.error("[sidebar] setPanelBehavior failed (toolbar icon will be inert):", err));
 
   // NOTA permisos: <all_urls> és host_permissions REQUERIT al manifest.
   // A Chromium es concedeix a la instal·lació. A Firefox MV3 els host

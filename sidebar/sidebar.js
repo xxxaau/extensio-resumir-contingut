@@ -57,9 +57,19 @@ document.addEventListener("DOMContentLoaded", () => {
         getSourceText: () => currentSourceText,
         setSourceText: (t) => { currentSourceText = t; updateSourceBtn(); },
         getContentPreload: () => contentPreload,
+        // Preload d'un sol ús (contingut de pàgina en carregar el sidebar, o
+        // un PDF local seleccionat): un cop consumit a startSummary s'ha de
+        // netejar, si no un PDF local queda "enganxat" i contamina qualsevol
+        // resum posterior d'una altra pestanya.
+        clearContentPreload: () => { contentPreload = null; },
         isBionicEnabled: () => isBionicEnabled,
         getGlobalConfig: () => globalConfigCache,
-        onPageIdentified: (title, url) => showPageTitleStrip(title, url)
+        onPageIdentified: (title, url) => showPageTitleStrip(title, url),
+        // Cridat per startSummary síncronament, abans del primer await, just
+        // després de crear l'AbortController — perquè "atura" funcioni durant
+        // tota l'streaming i no només un cop ja ha acabat (startSummary no
+        // resol la seva promesa fins al final de la generació).
+        setAbortController: (ctrl) => { abortController = ctrl; }
     };
 
     // Bound summary starter (partially applied with ctx)

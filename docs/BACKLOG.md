@@ -4,13 +4,76 @@ Llista de millores pendents, no prioritzades. Cada entrada inclou context i crit
 
 ---
 
+## Auditoria funcional 2026-08-09 — bugs pendents
+
+**Context:** auditoria de codi (3 agents en paral·lel, sense navegador) sobre
+tot `sidebar/`, `options/`, `shared/`, `background.js`, `ext.js`, contrastant
+amb els tests existents (275/275 passaven abans i després). Els fixes clars i
+de baix risc ja s'han aplicat (missatge d'estat d'«Actualitzar models»,
+migració d'`"anki"` a `applyExtensionOrder`, `.catch()` a `setPanelBehavior`,
+fuita de listeners del mapa conceptual). **Fets amb tests de regressió
+(2026-08-09):**
+
+- [x] **`abortController` era `null` mentre s'estava generant** (`sidebar.js`).
+  Fix: `ctx.setAbortController()` es crida síncronament dins `startSummary`,
+  abans del primer `await`, en lloc d'esperar que la promesa es resolgui.
+- [x] **Un PDF local "encallat" contaminava resums posteriors**
+  (`summary.js`, `sidebar.js`). Fix: `ctx.clearContentPreload()` neteja el
+  preload d'un sol ús just després de consumir-lo.
+- [x] **Targetes Anki cachejades eren irrecuperables des de l'Historial**
+  (`summary.js`, `history.js`). Fix: branca `anki` a `loadHistoryEntry`
+  (restaura `renderAnkiPanel`); si el model no retorna targetes vàlides, ja
+  no es cacheja i es mostra un avís. Nota: «Genera més»/«Afinar» expliquen
+  que no estan disponibles per a targetes reobertes des de l'Historial (no
+  hi ha el text original de la pàgina fora d'una sessió de generació activa).
+
+**Queden pendents, ordenats per severitat:**
+
+- [ ] **`sortModelsByPriority` ordena malament els Flash Lite** (`shared/models.js`).
+  Exposat pels models nous d'avui: `gemini-3.5-flash-lite` surt abans que
+  `gemini-3.1-flash-lite` (el per-defecte) al desplegable per un problema de
+  comparació de versions al sort.
+- [ ] **Timeout de 60s no cobreix el cos de l'streaming** (`sidebar/api.js:79-96`),
+  només l'espera de capçaleres HTTP. S'agreuja amb el bug de l'abort.
+- [ ] **Truncament de tokens no es recalcula en canviar de model al fallback**
+  (`summary.js:281`). Si el fallback passa a un model amb context més petit,
+  el prompt (ja truncat per al model anterior) pot seguir sent massa gran →
+  HTTP 400 no reintentable, trenca tota la cadena de fallback.
+- [ ] **Avortar enmig del bucle de reintents guarda un resum buit** (`summary.js:318`),
+  sense avisar l'usuari (ara emmascarat pel bug de l'abort de dalt).
+- [ ] **Rebuild de l'índex de cache no s'activa si la clau simplement no existeix**
+  (`sidebar/cache.js:33-45`) — només si existeix amb forma invàlida. Forats
+  d'historial silenciosos en instal·lacions afectades.
+- [ ] **`summarize-selection` sense text: rebuig de promesa no gestionat**
+  (`background.js:67-69`), no espera ni captura `openPromise` abans de `return`.
+- [ ] **"Genera més"/"Afinar" d'Anki sense guard de re-entrada** (`sidebar/anki.js`):
+  no bloquegen botons ni passen `AbortSignal`; doble clic pot duplicar/entrellaçar
+  targetes.
+- [ ] **`ensureFavoriteModels` torna a afegir el model per defecte a cada
+  càrrega** (`shared/models.js`) encara que l'usuari l'hagi desmarcat
+  explícitament — a confirmar si és intencionat (el comentari del codi ho
+  suggereix) o cal permetre desmarcar-lo de veritat.
+
+**Menor / codi mort (no urgent):** `ext.sidebar.close()` sense cap crida
+enlloc; icones sense ús a `shared/icons.js`; arbre `<details>` de fallback a
+`conceptmap.js` pràcticament inabastable; `closest()` sobre un resultat
+potencialment `null` a `options/settings-order.js:63-64`; tancament
+`</UNTRUSTED_CONTENT>` que es pot truncar en resums molt llargs
+(`summary.js:284-287`); `getDailyStats`/`rpd` (quota diària per model) estan
+implementats i testejats però no s'usen enlloc a producció.
+
+**Criteris d'acceptació:** cada ítem es tanca amb un fix + test de
+regressió, sense trencar els 275 tests existents.
+
+---
+
 ## v2.6.1 — fixes (proper bump)
 
 **Context (2026-06-26):** recollit en tancar la sessió del web propi. **Fixes de codi resolts el 2026-06-29**; queda fer el bump **2.6.1** (patch).
 
 - [x] **Botó «Targetes Anki» desactivat quan hi ha resum a la sidebar:** el botó es desactivava a l'inici de qualsevol generació (`allActionBtns` a `setGeneratingState`) però no es reactivava mai (faltava a la branca `else` i a `resetUI`). Afegit `ankiBtn.disabled = false` als dos llocs + test de regressió. (commit `a95bddb`)
 - [x] **Dev a Edge no agafa l'última versió:** el script `dev:chromium` ja generava codi fresc; la causa real era que la carpeta dev tenia el mateix nom i versió que l'extensió de la store ("Resumir" v2.6.0) → impossible distingir-les a Edge (es provava la de la store). Ara `dev:chromium` marca el nom com a **«Resumir (DEV)»**. (commit `6c16064`; vegeu [[chromium-dev-load]].)
-- [ ] **(procés) Revisió de fitxers esborrables abans del bump** — vegeu RELEASE-PROCESS (PRE-RELEASE). Ex.: buidar `temp/` (captures compartides; gitignored), artefactes de build antics.
+- [x] **(procés) Revisió de fitxers esborrables abans del bump** — institucionalitzat com a pas permanent al PRE-RELEASE de `RELEASE-PROCESS.md` (mateix commit `f1f7a6e`, 2026-06-26). Verificat net (2026-08-09): sense `temp/`, `.pw-userdata/`, `test-results/` ni ZIPs solts.
 
 **Criteris d'acceptació:**
 - [x] El botó de Targetes Anki s'activa correctament quan hi ha un resum a la sidebar. (verificat en viu a Edge + test unitari; 274/274)

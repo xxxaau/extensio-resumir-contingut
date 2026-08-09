@@ -560,19 +560,21 @@
             panStart.ty = state.transform.y;
             svgElement.style.cursor = "grabbing";
         });
-        window.addEventListener("mousemove", (e) => {
+        function onWindowMouseMove(e) {
             if (!isPanning) return;
             if (Math.abs(e.clientX - panStart.x) > 4 || Math.abs(e.clientY - panStart.y) > 4) didPan = true;
             state.transform.x = panStart.tx + (e.clientX - panStart.x);
             state.transform.y = panStart.ty + (e.clientY - panStart.y);
             applyTransform();
-        });
-        window.addEventListener("mouseup", () => {
+        }
+        function onWindowMouseUp() {
             if (isPanning) {
                 isPanning = false;
                 svgElement.style.cursor = "grab";
             }
-        });
+        }
+        window.addEventListener("mousemove", onWindowMouseMove);
+        window.addEventListener("mouseup", onWindowMouseUp);
 
         svgElement.style.cursor = "grab";
 
@@ -603,6 +605,10 @@
             setData,
             getRoot: () => state.root,
             rerender: render,
+            destroy: () => {
+                window.removeEventListener("mousemove", onWindowMouseMove);
+                window.removeEventListener("mouseup", onWindowMouseUp);
+            },
         };
     }
 

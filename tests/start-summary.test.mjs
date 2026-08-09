@@ -255,6 +255,91 @@ test("startSummary - golden path: crida API, actualitza currentMetadata i desa c
 });
 
 // ---------------------------------------------------------------------------
+// Regressió: ctx.setAbortController es crida SÍNCRONAMENT (abans del primer
+// await), perquè el botó "atura" pugui abortar durant tota l'streaming i no
+// només un cop la generació ja ha acabat (bug: sidebar.js no rebia
+// l'AbortController fins que la promesa de startSummary es resolia).
+// ---------------------------------------------------------------------------
+
+test("startSummary - crida ctx.setAbortController síncronament, abans de qualsevol await", async () => {
+    resetStorage();
+    await syncMock.set({ modelName: "gemini-2.0-flash" });
+    await localMock.set({ apiKey: "AIza_test_key" });
+    setupGlobals();
+
+    let capturedController = null;
+    const ctx = makeCtx({
+        setAbortController: (ctrl) => { capturedController = ctrl; },
+    });
+
+    const promise = startSummary(ctx, null, false, false, true);
+    // Una funció async corre síncronament fins al primer await: si
+    // setAbortController es crida abans (com ha de ser), capturedController
+    // ja ha de tenir valor AQUÍ, abans d'esperar la resolució de `promise`.
+    assert.ok(capturedController instanceof AbortController,
+        "setAbortController s'ha de cridar de forma síncrona, abans del primer await");
+
+    const resolved = await promise;
+    assert.equal(resolved, capturedController,
+        "l'AbortController retornat en resoldre's ha de ser el mateix que es va capturar síncronament");
+});
+
+// ---------------------------------------------------------------------------
+// Regressió: el preload d'un sol ús (PDF local) es neteja després de
+// consumir-se, perquè no contamini un resum posterior d'una altra pestanya
+// (bug: contentPreload no es reiniciava mai a sidebar.js).
+// ---------------------------------------------------------------------------
+
+test("startSummary - neteja el preload després de consumir-lo (PDF local no contamina el resum següent)", async () => {
+    resetStorage();
+    await syncMock.set({ modelName: "gemini-2.0-flash" });
+    await localMock.set({ apiKey: "AIza_test_key" });
+
+    let preloadPromise = Promise.resolve({
+        title: "Informe.pdf",
+        text: "TEXT_EXCLUSIU_DEL_PDF_LOCAL",
+        url: "pdf-local:informe.pdf",
+    });
+
+    const capturedTexts = [];
+    setupGlobals({
+        callGeminiStream: async (_k, _m, _p, text, _s, onChunk, onUsage) => {
+            capturedTexts.push(text);
+            onChunk("Resum.");
+            onUsage({ promptTokenCount: 10, candidatesTokenCount: 5 });
+            return { inputTokens: 10, outputTokens: 5, cacheTokens: 0 };
+        },
+        getPageContent: async () => ({
+            title: "Pàgina normal",
+            url: "https://example.com",
+            text: "TEXT_DE_LA_PAGINA_NORMAL",
+        }),
+    });
+
+    const ctx1 = makeCtx({
+        getContentPreload: () => preloadPromise,
+        clearContentPreload: () => { preloadPromise = null; },
+    });
+    await startSummary(ctx1, null, false, false, true);
+    assert.ok(capturedTexts[0].includes("TEXT_EXCLUSIU_DEL_PDF_LOCAL"),
+        "El primer resum ha d'usar el text del PDF local preloaded");
+    assert.equal(preloadPromise, null,
+        "El preload s'ha de netejar just després de consumir-lo");
+
+    // Segon resum (altra pestanya, sense preload nou): NO ha de reutilitzar
+    // el text del PDF anterior.
+    const ctx2 = makeCtx({
+        getContentPreload: () => preloadPromise, // ja null
+        clearContentPreload: () => { preloadPromise = null; },
+    });
+    await startSummary(ctx2, null, false, false, true);
+    assert.ok(!capturedTexts[1].includes("TEXT_EXCLUSIU_DEL_PDF_LOCAL"),
+        "El segon resum NO ha de contenir el text del PDF local anterior");
+    assert.ok(capturedTexts[1].includes("TEXT_DE_LA_PAGINA_NORMAL"),
+        "El segon resum ha d'usar el contingut fresc de la pàgina");
+});
+
+// ---------------------------------------------------------------------------
 // Fallback de quota: el primer model falla (429) i prova el segon
 // ---------------------------------------------------------------------------
 

@@ -121,6 +121,15 @@ function setupGlobals(dom) {
         el.textContent = text;
         return el;
     };
+    // Definits a sidebar/anki.js; mocks per als tests de loadHistoryEntry.
+    global.parseAnkiCards = (rawText) => {
+        const start = rawText.indexOf("[");
+        const end = rawText.lastIndexOf("]");
+        if (start === -1 || end === -1) return [];
+        try { return JSON.parse(rawText.slice(start, end + 1)); } catch { return []; }
+    };
+    global.setAnkiCards = () => {};
+    global.renderAnkiPanel = () => {};
 }
 
 // Carreguem el mòdul un cop
@@ -298,6 +307,64 @@ test("loadHistoryEntry - URL no-http usa href='#'", async () => {
 
     assert.equal(dom.els["page-title-link"].href, "#",
         "URLs no-http han de tenir href='#'");
+});
+
+// ---------------------------------------------------------------------------
+// loadHistoryEntry - Anki (regressió: abans es renderitzava el JSON cru com
+// a text pla perquè no hi havia branca "anki", només "conceptmap")
+// ---------------------------------------------------------------------------
+
+test("loadHistoryEntry - una entrada Anki restaura el panell interactiu, no text pla", async () => {
+    resetDOM();
+    await storageMock.set({ isBionicActive: false });
+
+    let capturedCards = null;
+    let capturedCtx = null;
+    global.setAnkiCards = (cards) => { capturedCards = cards; };
+    global.renderAnkiPanel = (ctx) => { capturedCtx = ctx; };
+
+    const entry = {
+        title: "Targetes de prova",
+        url: "https://example.com/article",
+        summary: '<!--anki-->\n[{"q":"Pregunta 1","a":"Resposta 1"}]',
+        model: "gemini-2.0-flash",
+        timestamp: new Date().toISOString(),
+    };
+
+    await loadHistoryEntry(entry);
+
+    assert.ok(Array.isArray(capturedCards), "setAnkiCards s'ha de cridar amb les targetes parsejades");
+    assert.equal(capturedCards.length, 1);
+    assert.equal(capturedCards[0].q, "Pregunta 1");
+    assert.ok(capturedCtx, "renderAnkiPanel s'ha de cridar (no formatTextToFragment)");
+    assert.equal(capturedCtx.contentDiv, dom.els.content);
+
+    // El text cru del marcador NO ha d'acabar mostrat literalment a content.
+    assert.ok(!dom.els.content.textContent?.includes("<!--anki-->"),
+        "El marcador cru no s'ha de renderitzar com a text pla");
+});
+
+test("loadHistoryEntry - Anki des de l'Historial: 'Genera més' avisa que no està disponible en lloc de petar", async () => {
+    resetDOM();
+    await storageMock.set({ isBionicActive: false });
+
+    let capturedCtx = null;
+    global.renderAnkiPanel = (ctx) => { capturedCtx = ctx; };
+
+    await loadHistoryEntry({
+        title: "Targetes",
+        url: "https://example.com",
+        summary: '<!--anki-->\n[{"q":"P","a":"R"}]',
+        model: "m",
+        timestamp: new Date().toISOString(),
+    });
+
+    assert.equal(typeof capturedCtx.onGenerateMore, "function");
+    capturedCtx.onGenerateMore("");
+
+    assert.ok(!dom.els.error.classList.contains("hidden"), "error ha de ser visible");
+    assert.ok(dom.els.error.textContent.includes("Historial"),
+        `error ha d'explicar la limitació, té: "${dom.els.error.textContent}"`);
 });
 
 // ---------------------------------------------------------------------------

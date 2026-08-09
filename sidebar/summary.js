@@ -93,7 +93,8 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
     
     const abortController = new AbortController();
     const signal = abortController.signal;
-    
+    if (typeof ctx.setAbortController === "function") ctx.setAbortController(abortController);
+
     const generationStartMs = startGenerationTimer();
     updateTokenStats(0, 0);  // Reset tokens display for new generation
 
@@ -174,6 +175,10 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
                 }
             } catch (e) {
                 console.warn("Preload failed, retrying fresh:", e);
+            } finally {
+                // D'un sol ús: si no es neteja, un PDF local (o el preload de
+                // pàgina inicial) queda "enganxat" i contamina resums posteriors.
+                if (typeof ctx.clearContentPreload === "function") ctx.clearContentPreload();
             }
         }
 
@@ -393,32 +398,45 @@ async function startSummary(ctx, overrideText = null, isDeepDive = false, isScie
             throw new Error("[003] Tots els models disponibles han fallat (manca de quota). Si us plau, proveu-ho més tard.");
         }
         
+        // Sense targetes vàlides, no hi ha res útil a mostrar ni a cachejar
+        // (cachejar-ho igualment deixava una entrada d'Historial permanentment
+        // trencada, sense manera de tornar-la a generar des d'allà).
+        const ankiCardsParsed = isAnki ? parseAnkiCards(currentMetadata.summary) : null;
+        const ankiHasNoCards = isAnki && ankiCardsParsed.length === 0;
+
         if (isConceptMap) {
             contentDiv.replaceChildren(renderMarkmapInteractive(currentMetadata.summary, currentMetadata.title, currentMetadata.url));
         } else if (isAnki) {
-            // Desvia el render al panell Anki interactiu
-            setAnkiCards(parseAnkiCards(currentMetadata.summary));
-            renderAnkiPanel(buildAnkiCtx(ctx));
+            if (ankiHasNoCards) {
+                errorDiv.textContent = "El model no ha retornat cap targeta vàlida. Prova de tornar a generar.";
+                errorDiv.classList.remove("hidden");
+            } else {
+                // Desvia el render al panell Anki interactiu
+                setAnkiCards(ankiCardsParsed);
+                renderAnkiPanel(buildAnkiCtx(ctx));
+            }
         } else {
             contentDiv.replaceChildren(formatTextToFragment(currentMetadata.summary, bionicEnabled, bionicFixation));
         }
 
         applyBionicStyles(contentDiv, bionicEnabled, config);
-        
+
         setGeneratingState(false, true);
-        
+
         // 4. Update Stats & Cache
         // apiUsage is null if the stream failed mid-flight or the API returned no usageMetadata.
         // Fall back to character-based estimates in those cases.
         const inputTokens  = apiUsage?.inputTokens  ?? pageText.length / 4;
         const outputTokens = apiUsage?.outputTokens ?? currentMetadata.summary.length / 4;
         const cacheTokens  = apiUsage?.cacheTokens  ?? 0;
-        
+
         const contentType = isConceptMap ? "conceptmap" : isAnki ? "anki" : isScience ? "science" : isDeepDive ? "deepdive" : isSimple ? "simple" : "summary";
         const summaryToCache = isConceptMap ? "<!--conceptmap-->\n" + currentMetadata.summary
             : isAnki ? "<!--anki-->\n" + currentMetadata.summary
             : currentMetadata.summary;
-        await saveSummaryCache(currentMetadata.url, currentMetadata.title, summaryToCache, modelName, inputTokens, outputTokens, contentType);
+        if (!ankiHasNoCards) {
+            await saveSummaryCache(currentMetadata.url, currentMetadata.title, summaryToCache, modelName, inputTokens, outputTokens, contentType);
+        }
         await saveUsageStats(inputTokens, outputTokens, contentType, modelName, Date.now() - generationStartMs, currentMetadata.title, currentMetadata.url, cacheTokens);
         
         updateTokenStats(inputTokens, outputTokens, {

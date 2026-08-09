@@ -93,6 +93,11 @@ function applyExtensionOrder(order) {
             order.unshift("selectpdf");
         }
         ext.storage.sync.set({ extensionOrder: order });
+    } else if (!order.includes("anki")) {
+        // Migrate older saved orders (pre-Anki) to include anki al final,
+        // com a DEFAULT_EXTENSION_ORDER.
+        order = [...order, "anki"];
+        ext.storage.sync.set({ extensionOrder: order });
     }
 
     const toolbar = document.querySelector(".toolbar");

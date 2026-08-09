@@ -7,28 +7,36 @@
 // Importat via require() en els tests Node.
 
 /** Taxa de conversió USD → EUR. Font: referència editorial, actualitzar cada trimestre.
- * Last updated: May 18, 2026 (Q2 2026 rate from ECB)
+ * Last updated: August 9, 2026 (Q3 2026 rate from ECB, EUR/USD ≈ 1.1535)
  */
-const EUR_RATE = 0.92; // 2026-Q2
+const EUR_RATE = 0.87; // 2026-Q3
 
+// Pricing/context window verificats el 2026-08-09 contra
+// https://ai.google.dev/gemini-api/docs/pricing (pàgina actualitzada 2026-08-05)
+// i https://ai.google.dev/gemini-api/docs/models. Els RPD del free tier no surten
+// en aquestes pàgines (cal consultar AI Studio per compte); es mantenen valors
+// anteriors quan no hi ha font nova, marcats com a estimació.
 const CURATED_MODELS = [
     // Flash Lite — prioritat màxima (ràpids, econòmics)
     { id: "gemini-3.1-flash-lite",     label: "Gemini 3.1 Flash Lite",    priceIn: 0.25,   priceOut: 1.50,   rpd: 2000,   contextWindow: 1_000_000, fallback: true  },
-    
+    { id: "gemini-3.5-flash-lite",     label: "Gemini 3.5 Flash Lite",    priceIn: 0.30,   priceOut: 2.50,   rpd: 1000,   contextWindow: 1_000_000, fallback: true  },
+    { id: "gemini-2.5-flash-lite",     label: "Gemini 2.5 Flash Lite",    priceIn: 0.10,   priceOut: 0.40,   rpd: 1000,   contextWindow: 1_000_000, fallback: true  },
+
     // Flash — equilibri velocitat/cost
-    { id: "gemini-3.5-flash",          label: "Gemini 3.5 Flash",         priceIn: 0.30,   priceOut: 2.50,   rpd: 1500,   contextWindow: 1_000_000, fallback: true  },
+    { id: "gemini-3.6-flash",          label: "Gemini 3.6 Flash",         priceIn: 1.50,   priceOut: 7.50,   rpd: 1500,   contextWindow: 1_000_000, fallback: true  },
+    { id: "gemini-3.5-flash",          label: "Gemini 3.5 Flash",         priceIn: 1.50,   priceOut: 9.00,   rpd: 1500,   contextWindow: 1_000_000, fallback: true  },
     { id: "gemini-2.5-flash",          label: "Gemini 2.5 Flash",         priceIn: 0.30,   priceOut: 2.50,   rpd: 500,    contextWindow: 1_000_000, fallback: true  },
-    
+
     // Gemma — open source, gratis, bon valor per resumir
     { id: "gemma-3-27b-it",            label: "Gemma 3 (27B)",            priceIn: 0.15,   priceOut: 0.15,   rpd: 2000,   contextWindow: 131_072,   fallback: true  },
     { id: "gemma-3-12b-it",            label: "Gemma 3 (12B)",            priceIn: 0.10,   priceOut: 0.10,   rpd: 2000,   contextWindow: 131_072,   fallback: true  },
-    
+
     // Flash Preview — per sobre de Pro (preu Flash, qualitat propera a Pro)
     { id: "gemini-3-flash-preview",    label: "Gemini 3 Flash",           priceIn: 0.50,   priceOut: 3.00,   rpd: 1000,   contextWindow: 1_048_576, fallback: true  },
-    
+
     // Pro — màxima potència
-    { id: "gemini-2.5-pro",            label: "Gemini 2.5 Pro",           priceIn: 1.25,   priceOut: 5.00,   rpd: 50,     contextWindow: 1_000_000, fallback: false },
-    
+    { id: "gemini-2.5-pro",            label: "Gemini 2.5 Pro",           priceIn: 1.25,   priceOut: 10.00,  rpd: 50,     contextWindow: 1_000_000, fallback: false },
+
     // Pro Preview — última generació Pro
     { id: "gemini-3.1-pro-preview",    label: "Gemini 3.1 Pro",           priceIn: 2.00,   priceOut: 12.00,  rpd: 100,    contextWindow: 1_048_576, fallback: false },
 ];
